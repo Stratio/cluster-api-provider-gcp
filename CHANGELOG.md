@@ -1,10 +1,12 @@
 # Changelog
 
-## 1.6.1-0.1.0 (2024-08-22)
+## 1.6.1-0.2.0 (upcoming)
 
-
-* Add the PRs that have not yet been merged
+* Fix autoscaling issues
+* First approach to manage taints addition, update and deletion on GKE
 
 ## Previous development
 
-### 
+### Branched to branch-1.6.1-0.1 (2024-08-22)
+
+* Add cluster api provider for GCP
