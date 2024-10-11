@@ -6,6 +6,7 @@
 * Fix autoscaling issues
 * First approach to manage taints addition, update and deletion on GKE
 * After creating a GKE cluster, it takes ~20 minutes for its status to be READY
+* [PLT-911] Disable external endpoint
 
 ## Previous development
 
