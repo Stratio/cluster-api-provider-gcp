@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make kustomize  # Ajusta si necesitas instalar mas dependencias
+        sudo apt-get install -y make kustomize 
 
     # 3. Run Makefile to generate manifests
     - name: Run Makefile to generate infrastructure-components.yaml
@@ -42,6 +42,6 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./out/metadata.yaml  # Ajusta el path si es necesario
+        asset_path: ./out/metadata.yaml 
         asset_name: metadata.yaml
         asset_content_type: application/x-yaml
