@@ -18,7 +18,12 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y make kustomize 
+        sudo apt-get install -y make 
+
+    - name: Install Kustomize
+      run: |
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+        sudo mv kustomize /usr/local/bin/
 
     # 3. Run Makefile to generate manifests
     - name: Run Makefile to generate infrastructure-components.yaml
