@@ -4,6 +4,7 @@ on:
   release:
     types: [created]
 
+# Add permissions to GITHUB_TOKEN auto-generated to write to the repository
 permissions:
   contents: write  
 
