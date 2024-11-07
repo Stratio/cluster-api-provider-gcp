@@ -270,8 +270,13 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 		if cn.PrivateCluster != nil {
 			cluster.PrivateClusterConfig = &containerpb.PrivateClusterConfig{}
 			cluster.PrivateClusterConfig.EnablePrivateEndpoint = cn.PrivateCluster.EnablePrivateEndpoint
-			cluster.PrivateClusterConfig.EnablePrivateNodes = cn.PrivateCluster.EnablePrivateNodes
-			cluster.PrivateClusterConfig.MasterIpv4CidrBlock = cn.PrivateCluster.ControlPlaneCidrBlock
+			if cn.PrivateCluster.EnablePrivateNodes {
+				cluster.PrivateClusterConfig.MasterIpv4CidrBlock = cn.PrivateCluster.ControlPlaneCidrBlock
+				cluster.MasterAuthorizedNetworksConfig = &containerpb.MasterAuthorizedNetworksConfig{
+					Enabled: true,
+				}
+			}
+			cluster.PrivateClusterConfig.EnablePrivateNodes = true
 		}
 	}
 	if s.scope.GCPManagedControlPlane.Spec.MonitoringConfig != nil {
