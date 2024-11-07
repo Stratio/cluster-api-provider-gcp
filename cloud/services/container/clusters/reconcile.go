@@ -270,7 +270,7 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 		if cn.PrivateCluster != nil {
 			cluster.PrivateClusterConfig = &containerpb.PrivateClusterConfig{}
 			cluster.PrivateClusterConfig.EnablePrivateEndpoint = cn.PrivateCluster.EnablePrivateEndpoint
-			if cn.PrivateCluster.EnablePrivateNodes {
+			if cn.PrivateCluster.EnablePrivateEndpoint {
 				cluster.PrivateClusterConfig.MasterIpv4CidrBlock = cn.PrivateCluster.ControlPlaneCidrBlock
 				cluster.MasterAuthorizedNetworksConfig = &containerpb.MasterAuthorizedNetworksConfig{
 					Enabled: true,
