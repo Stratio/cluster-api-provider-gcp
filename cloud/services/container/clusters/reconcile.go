@@ -265,6 +265,7 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 	if s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion != nil {
 		cluster.InitialClusterVersion = convertToSdkMasterVersion(*s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion)
 	}
+
 	if s.scope.GCPManagedControlPlane.Spec.ClusterNetwork != nil {
 		cn := s.scope.GCPManagedControlPlane.Spec.ClusterNetwork
 		if cn.PrivateCluster != nil {
@@ -276,7 +277,6 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 					Enabled: true,
 				}
 			}
-			cluster.PrivateClusterConfig.EnablePrivateNodes = true
 		}
 	}
 	if s.scope.GCPManagedControlPlane.Spec.MonitoringConfig != nil {
