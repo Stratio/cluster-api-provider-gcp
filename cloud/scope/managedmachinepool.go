@@ -183,6 +183,8 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 		// Use the GCPManagedMachinePool CR name if nodePoolName is not specified
 		nodePoolName = nodePool.Name
 	}
+	// Print all nodepool spec
+	fmt.Printf("nodePool.Spec: %+v\n", nodePool.Spec)
 	// build node pool in GCP SDK format using the GCPManagedMachinePool spec
 	sdkNodePool := containerpb.NodePool{
 		Name:             nodePoolName,
@@ -197,6 +199,7 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 			ResourceLabels: NodePoolResourceLabels(nodePool.Spec.AdditionalLabels, clusterName),
 		},
 	}
+
 	if nodePool.Spec.MachineType != nil {
 		sdkNodePool.Config.MachineType = *nodePool.Spec.MachineType
 	}
@@ -217,6 +220,9 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 	}
 	if nodePool.Spec.LinuxNodeConfig != nil {
 		sdkNodePool.Config.LinuxNodeConfig = infrav1exp.ConvertToSdkLinuxNodeConfig(nodePool.Spec.LinuxNodeConfig)
+	}
+	if nodePool.Spec.BootDiskKmsKey != "" {
+		sdkNodePool.Config.BootDiskKmsKey = nodePool.Spec.BootDiskKmsKey
 	}
 	if nodePool.Spec.Management != nil {
 		sdkNodePool.Management = &containerpb.NodeManagement{
@@ -240,6 +246,9 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 	}
 	if nodePool.Spec.DiskSizeGB != nil {
 		sdkNodePool.Config.DiskSizeGb = int32(*nodePool.Spec.DiskSizeGB)
+	}
+	if nodePool.Spec.BootDiskKmsKey != "" {
+		sdkNodePool.Config.BootDiskKmsKey = nodePool.Spec.BootDiskKmsKey
 	}
 	if len(nodePool.Spec.NodeNetwork.Tags) != 0 {
 		sdkNodePool.Config.Tags = nodePool.Spec.NodeNetwork.Tags

@@ -49,6 +49,30 @@ type ClusterNetwork struct {
 	// PrivateCluster defines the private cluster spec.
 	// +optional
 	PrivateCluster *PrivateCluster `json:"privateCluster,omitempty"`
+	// Pod defines the range of CIDRBlock list from where it gets the IP address.
+	// +optional
+	Pod *ClusterNetworkPod `json:"pod,omitempty"`
+	// Service defines the range of CIDRBlock list from where it gets the IP address.
+	// +optional
+	Service *ClusterNetworkService `json:"service,omitempty"`
+}
+
+// ClusterNetworkPod the range of CIDRBlock list from where it gets the IP address.
+type ClusterNetworkPod struct {
+	// CidrBlock is where all pods in the cluster are assigned an IP address from this range. Enter a range
+	// (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+	// This setting is permanent.
+	// +optional
+	CidrBlock string `json:"cidrBlock,omitempty"`
+}
+
+// ClusterNetworkService defines the range of CIDRBlock list from where it gets the IP address.
+type ClusterNetworkService struct {
+	// CidrBlock is where cluster services will be assigned an IP address from this IP address range. Enter a range
+	// (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+	// This setting is permanent.
+	// +optional
+	CidrBlock string `json:"cidrBlock,omitempty"`
 }
 
 // LoggingConfig defines the logging on Cluster.

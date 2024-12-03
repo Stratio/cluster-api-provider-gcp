@@ -71,6 +71,17 @@ spec:
               clusterNetwork:
                 description: ClusterNetwork define the cluster network.
                 properties:
+                  pod:
+                    description: Pod defines the range of CIDRBlock list from where
+                      it gets the IP address.
+                    properties:
+                      cidrBlock:
+                        description: |-
+                          CidrBlock is where all pods in the cluster are assigned an IP address from this range. Enter a range
+                          (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+                          This setting is permanent.
+                        type: string
+                    type: object
                   privateCluster:
                     description: PrivateCluster defines the private cluster spec.
                     properties:
@@ -91,6 +102,17 @@ spec:
                           1918 private addresses and communicate with the master via
                           private networking.
                         type: boolean
+                    type: object
+                  service:
+                    description: Service defines the range of CIDRBlock list from
+                      where it gets the IP address.
+                    properties:
+                      cidrBlock:
+                        description: |-
+                          CidrBlock is where cluster services will be assigned an IP address from this IP address range. Enter a range
+                          (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+                          This setting is permanent.
+                        type: string
                     type: object
                 type: object
               controlPlaneVersion:
