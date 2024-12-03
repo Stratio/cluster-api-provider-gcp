@@ -183,8 +183,6 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 		// Use the GCPManagedMachinePool CR name if nodePoolName is not specified
 		nodePoolName = nodePool.Name
 	}
-	// Print all nodepool spec
-	fmt.Printf("nodePool.Spec: %+v\n", nodePool.Spec)
 	// build node pool in GCP SDK format using the GCPManagedMachinePool spec
 	sdkNodePool := containerpb.NodePool{
 		Name:             nodePoolName,
