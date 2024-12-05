@@ -2,6 +2,7 @@
 
 ## 1.6.1-0.2.1 (upcoming)
 
+* [PLT-1313] Soportar rangos secundarios de CIDR
 * [PLT-1246] CMEK Support
 
 ## 1.6.1-0.2.0 (2024-10-24)
