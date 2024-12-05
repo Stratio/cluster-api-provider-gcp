@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1-0.2.1 (upcoming)
+
+* [PLT-1246] CMEK Support
+
 ## 1.6.1-0.2.0 (2024-10-24)
 
 * [PLT-965] Disable managed Monitoring and Logging
