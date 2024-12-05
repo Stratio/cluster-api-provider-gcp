@@ -300,6 +300,15 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 		}
 	}
 
+	// Add IPAllocationPolicy for CIDR support (PLT-1246)
+	if s.scope.GCPManagedControlPlane.Spec.ClusterIpv4Cidr != nil {
+		cluster.ClusterIpv4Cidr = *s.scope.GCPManagedControlPlane.Spec.ClusterIpv4Cidr
+	}
+
+	if s.scope.GCPManagedControlPlane.Spec.IPAllocationPolicy != nil {
+		cluster.IpAllocationPolicy = infrav1exp.ConvertToSdkIPAllocationPolicy(s.scope.GCPManagedControlPlane.Spec.IPAllocationPolicy)
+	}
+
 	// If the cluster is autopilot, we don't need to specify node pools.
 	if !s.scope.IsAutopilotCluster() {
 		cluster.NodePools = scope.ConvertToSdkNodePools(nodePools, machinePools, isRegional, cluster.Name)
