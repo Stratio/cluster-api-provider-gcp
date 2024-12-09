@@ -1,11 +1,17 @@
 # Changelog
 
-## 1.6.1-0.3.0 (upcoming)
+## 1.6.1-0.4.0 (upcoming)
+
+* Pending changelog
+
+## Previous development
+
+### Branched to branch-1.6.1-0.3 (2024-12-09)
 
 * [PLT-327] After creating a GKE cluster, it takes ~20 minutes for its status to be READY
 * [PLT-911] Disable external endpoint
 
-## Previous development
+
 
 ## 1.6.1-0.2.0 (2024-10-11)
 
