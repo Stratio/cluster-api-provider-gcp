@@ -2,8 +2,7 @@
 
 ## 1.6.1-0.3.0 (upcoming)
 
-* [PLT-327] After creating a GKE cluster, it takes ~20 minutes for its status to be READY
-* [PLT-911] Disable external endpoint
+ * [PLT-965] -  Cherry master  - [`#29`](https://github.com/Stratio/cluster-api-provider-gcp/pull/29)
 
 ## Previous development
 
