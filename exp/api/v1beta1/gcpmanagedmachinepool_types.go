@@ -114,6 +114,8 @@ type GCPManagedMachinePoolSpec struct {
 	// machine pool
 	// +optional
 	ProviderIDList []string `json:"providerIDList,omitempty"`
+	// BootDiskKmsKey is the name of the key used to encrypt the boot disk.
+	BootDiskKmsKey string `json:"bootDiskKmsKey,omitempty"`
 }
 
 // NodeNetworkConfig encapsulates node network configurations.

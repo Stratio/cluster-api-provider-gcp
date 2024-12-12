@@ -24,6 +24,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/pointer"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -123,6 +124,15 @@ func (r *GCPManagedControlPlane) ValidateUpdate(oldRaw runtime.Object) (admissio
 		)
 	}
 
+	// Add IPAllocationPolicy for CIDR support (PLT-1246)
+
+	if !cmp.Equal(r.Spec.ClusterIpv4Cidr, old.Spec.ClusterIpv4Cidr) {
+		allErrs = append(allErrs,
+			field.Invalid(field.NewPath("spec", "ClusterIpv4Cidr"),
+				pointer.StringDeref(r.Spec.ClusterIpv4Cidr, ""), "field is immutable"),
+		)
+	}
+
 	if !cmp.Equal(r.Spec.EnableAutopilot, old.Spec.EnableAutopilot) {
 		allErrs = append(allErrs,
 			field.Invalid(field.NewPath("spec", "EnableAutopilot"),
@@ -166,4 +176,55 @@ func generateGKEName(resourceName, namespace string, maxLength int) (string, err
 	}
 
 	return fmt.Sprintf("%s%s", resourcePrefix, hashedName), nil
+}
+
+// Add IPAllocationPolicy for CIDR support (PLT-1246)
+
+func validateIPAllocationPolicy(spec GCPManagedControlPlaneSpec) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if spec.IPAllocationPolicy == nil {
+		return allErrs
+	}
+
+	path := field.NewPath("spec", "IPAllocationPolicy")
+
+	isUseIPAliases := pointer.BoolDeref(spec.IPAllocationPolicy.UseIPAliases, false)
+	if spec.IPAllocationPolicy.ClusterSecondaryRangeName != nil && !isUseIPAliases {
+		allErrs = append(allErrs,
+			field.Invalid(path.Child("ClusterSecondaryRangeName"),
+				spec.IPAllocationPolicy.ClusterSecondaryRangeName,
+				"field cannot be set unless UseIPAliases is set to true"),
+		)
+	}
+	if spec.IPAllocationPolicy.ServicesSecondaryRangeName != nil && !isUseIPAliases {
+		allErrs = append(allErrs,
+			field.Invalid(path.Child("ServicesSecondaryRangeName"),
+				spec.IPAllocationPolicy.ServicesSecondaryRangeName,
+				"field cannot be set unless UseIPAliases is set to true"),
+		)
+	}
+	if spec.IPAllocationPolicy.ServicesIpv4CidrBlock != nil && !isUseIPAliases {
+		allErrs = append(allErrs,
+			field.Invalid(path.Child("ServicesIpv4CidrBlock"),
+				spec.IPAllocationPolicy.ServicesIpv4CidrBlock,
+				"field cannot be set unless UseIPAliases is set to true"),
+		)
+	}
+	if spec.IPAllocationPolicy.ClusterIpv4CidrBlock != nil && !isUseIPAliases {
+		allErrs = append(allErrs,
+			field.Invalid(path.Child("ClusterIpv4CidrBlock"),
+				spec.IPAllocationPolicy.ClusterIpv4CidrBlock,
+				"field cannot be set unless UseIPAliases is set to true"),
+		)
+	}
+	if spec.IPAllocationPolicy.ClusterIpv4CidrBlock != nil && spec.ClusterIpv4Cidr != nil {
+		allErrs = append(allErrs,
+			field.Invalid(path.Child("ClusterIpv4CidrBlock"),
+				spec.IPAllocationPolicy.ClusterIpv4CidrBlock,
+				"only one of spec.ClusterIpv4Cidr and spec.IPAllocationPolicy.ClusterIpv4CidrBlock can be set"),
+		)
+	}
+
+	return allErrs
 }

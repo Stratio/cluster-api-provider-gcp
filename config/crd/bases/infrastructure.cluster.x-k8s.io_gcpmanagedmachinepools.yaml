@@ -58,6 +58,10 @@ spec:
                   AdditionalLabels is an optional set of tags to add to GCP resources managed by the GCP provider, in addition to the
                   ones added by default.
                 type: object
+              bootDiskKmsKey:
+                description: BootDiskKmsKey is the name of the key used to encrypt
+                  the boot disk.
+                type: string
               diskSizeGB:
                 description: |-
                   DiskSizeGB is size of the disk attached to each node,
