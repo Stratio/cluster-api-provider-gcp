@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1-0.3.0 (upcoming)
+## 1.6.1-0.3.0 (2025-01-14)
 
 * [PLT-1330] CMEK - Service accounts & Secondary CIDR ranges adaption to R4.7
 
