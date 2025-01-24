@@ -62,6 +62,14 @@ spec:
           spec:
             description: GCPManagedControlPlaneSpec defines the desired state of GCPManagedControlPlane.
             properties:
+              clusterIpv4Cidr:
+                description: |-
+                  ClusterIpv4Cidr is the IP address range of the container pods in the GKE cluster, in
+                  [CIDR](http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing)
+                  notation (e.g. `10.96.0.0/14`).
+                  If not specified then one will be automatically chosen.
+                  If this field is specified then IPAllocationPolicy.ClusterIpv4CidrBlock should be left blank.
+                type: string
               clusterName:
                 description: |-
                   ClusterName allows you to specify the name of the GKE cluster.
@@ -118,11 +126,57 @@ spec:
                 - host
                 - port
                 type: object
+              ipAllocationPolicy:
+                description: |-
+                  IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
+                  If not specified then GKE default values will be used.
+                properties:
+                  clusterIpv4CidrBlock:
+                    description: |-
+                      ClusterIpv4CidrBlock represents the IP address range for the GKE cluster pod IPs. If this field is set, then
+                      GCPManagedControlPlaneSpec.ClusterIpv4Cidr must be left blank.
+                      This field is only applicable when use_ip_aliases is set to true.
+                      If not specified the range will be chosen with the default size.
+                    type: string
+                  clusterSecondaryRangeName:
+                    description: |-
+                      ClusterSecondaryRangeName represents the name of the secondary range to be used for the GKE cluster CIDR block.
+                      The range will be used for pod IP addresses and must be an existing secondary range associated with the cluster subnetwork.
+                      This field is only applicable when use_ip_aliases is set to true.
+                    type: string
+                  servicesIpv4CidrBlock:
+                    description: |-
+                      ServicesIpv4CidrBlock represents the IP address range for services IPs in the GKE cluster.
+                      This field is only applicable when use_ip_aliases is set to true.
+                      If not specified the range will be chosen with the default size.
+                    type: string
+                  servicesSecondaryRangeName:
+                    description: |-
+                      ServicesSecondaryRangeName represents the name of the secondary range to be used for the services CIDR block.
+                      The range will be used for service ClusterIPs and must be an existing secondary range associated with the cluster subnetwork.
+                      This field is only applicable when use_ip_aliases is set to true.
+                    type: string
+                  useIPAliases:
+                    description: |-
+                      UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster.
+                      If unspecified will default to false.
+                    type: boolean
+                type: object
               location:
                 description: |-
                   Location represents the location (region or zone) in which the GKE cluster
                   will be created.
                 type: string
+              loggingConfig:
+                description: LoggingConfig defines the logging on Cluster.
+                properties:
+                  systemComponents:
+                    description: SystemComponents enables the system component logging.
+                    type: boolean
+                  workloads:
+                    description: Workloads enables the Workloads logging.
+                    type: boolean
+                type: object
               master_authorized_networks_config:
                 description: |-
                   MasterAuthorizedNetworksConfig represents configuration options for master authorized networks feature of the GKE cluster.
@@ -149,6 +203,14 @@ spec:
                   gcp_public_cidrs_access_enabled:
                     description: Whether master is accessible via Google Compute Engine
                       Public IP addresses.
+                    type: boolean
+                type: object
+              monitoringConfig:
+                description: MonitoringConfig defines the monitoring on Cluster.
+                properties:
+                  enableManagedPrometheus:
+                    description: EnableManagedPrometheus Enable Google Cloud Managed
+                      Service for Prometheus in the cluster.
                     type: boolean
                 type: object
               networkPolicy:
