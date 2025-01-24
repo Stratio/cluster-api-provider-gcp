@@ -51,6 +51,23 @@ type ClusterNetwork struct {
 	PrivateCluster *PrivateCluster `json:"privateCluster,omitempty"`
 }
 
+// LoggingConfig defines the logging on Cluster.
+type LoggingConfig struct {
+	// SystemComponents enables the system component logging.
+	// +optional
+	SystemComponents bool `json:"systemComponents,omitempty"`
+	// Workloads enables the Workloads logging.
+	// +optional
+	Workloads bool `json:"workloads,omitempty"`
+}
+
+// MonitoringConfig defines the monitoring on Cluster.
+type MonitoringConfig struct {
+	// EnableManagedPrometheus Enable Google Cloud Managed Service for Prometheus in the cluster.
+	// +optional
+	EnableManagedPrometheus bool `json:"enableManagedPrometheus,omitempty"`
+}
+
 // GCPManagedControlPlaneSpec defines the desired state of GCPManagedControlPlane.
 type GCPManagedControlPlaneSpec struct {
 	// ClusterName allows you to specify the name of the GKE cluster.
@@ -61,11 +78,28 @@ type GCPManagedControlPlaneSpec struct {
 	// ClusterNetwork define the cluster network.
 	// +optional
 	ClusterNetwork *ClusterNetwork `json:"clusterNetwork,omitempty"`
+	// LoggingConfig defines the logging on Cluster.
+	// +optional
+	LoggingConfig *LoggingConfig `json:"loggingConfig,omitempty"`
+	// MonitoringConfig defines the monitoring on Cluster.
+	// +optional
+	MonitoringConfig *MonitoringConfig `json:"monitoringConfig,omitempty"`
 	// Project is the name of the project to deploy the cluster to.
 	Project string `json:"project"`
 	// Location represents the location (region or zone) in which the GKE cluster
 	// will be created.
 	Location string `json:"location"`
+	// ClusterIpv4Cidr is the IP address range of the container pods in the GKE cluster, in
+	// [CIDR](http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing)
+	// notation (e.g. `10.96.0.0/14`).
+	// If not specified then one will be automatically chosen.
+	// If this field is specified then IPAllocationPolicy.ClusterIpv4CidrBlock should be left blank.
+	// +optional
+	ClusterIpv4Cidr *string `json:"clusterIpv4Cidr,omitempty"`
+	// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
+	// If not specified then GKE default values will be used.
+	// +optional
+	IPAllocationPolicy *IPAllocationPolicy `json:"ipAllocationPolicy,omitempty"`
 	// EnableAutopilot indicates whether to enable autopilot for this GKE cluster.
 	// +optional
 	EnableAutopilot bool `json:"enableAutopilot"`
@@ -149,6 +183,35 @@ const (
 	// Stable release channel.
 	Stable ReleaseChannel = "stable"
 )
+
+// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
+type IPAllocationPolicy struct {
+	// UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster.
+	// If unspecified will default to false.
+	// +optional
+	UseIPAliases *bool `json:"useIPAliases,omitempty"`
+	// ClusterSecondaryRangeName represents the name of the secondary range to be used for the GKE cluster CIDR block.
+	// The range will be used for pod IP addresses and must be an existing secondary range associated with the cluster subnetwork.
+	// This field is only applicable when use_ip_aliases is set to true.
+	// +optional
+	ClusterSecondaryRangeName *string `json:"clusterSecondaryRangeName,omitempty"`
+	// ServicesSecondaryRangeName represents the name of the secondary range to be used for the services CIDR block.
+	// The range will be used for service ClusterIPs and must be an existing secondary range associated with the cluster subnetwork.
+	// This field is only applicable when use_ip_aliases is set to true.
+	// +optional
+	ServicesSecondaryRangeName *string `json:"servicesSecondaryRangeName,omitempty"`
+	// ClusterIpv4CidrBlock represents the IP address range for the GKE cluster pod IPs. If this field is set, then
+	// GCPManagedControlPlaneSpec.ClusterIpv4Cidr must be left blank.
+	// This field is only applicable when use_ip_aliases is set to true.
+	// If not specified the range will be chosen with the default size.
+	// +optional
+	ClusterIpv4CidrBlock *string `json:"clusterIpv4CidrBlock,omitempty"`
+	// ServicesIpv4CidrBlock represents the IP address range for services IPs in the GKE cluster.
+	// This field is only applicable when use_ip_aliases is set to true.
+	// If not specified the range will be chosen with the default size.
+	// +optional
+	ServicesIpv4CidrBlock *string `json:"servicesIpv4CidrBlock,omitempty"`
+}
 
 // MasterAuthorizedNetworksConfig contains configuration options for the master authorized networks feature.
 // Enabled master authorized networks will disallow all external traffic to access
