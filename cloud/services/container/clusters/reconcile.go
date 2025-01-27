@@ -27,6 +27,7 @@ import (
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
@@ -507,7 +508,7 @@ func compareMasterAuthorizedNetworksConfig(a, b *containerpb.MasterAuthorizedNet
 	if (a.CidrBlocks == nil && b.CidrBlocks != nil && len(b.CidrBlocks) == 0) || (b.CidrBlocks == nil && a.CidrBlocks != nil && len(a.CidrBlocks) == 0) {
 		return true
 	}
-	if !cmp.Equal(a.CidrBlocks, b.CidrBlocks) {
+	if !cmp.Equal(a.CidrBlocks, b.CidrBlocks, cmpopts.IgnoreUnexported(containerpb.MasterAuthorizedNetworksConfig_CidrBlock{})) {
 		return false
 	}
 	return true
