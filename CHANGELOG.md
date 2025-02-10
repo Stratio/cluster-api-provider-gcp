@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1-0.3.1 (upcoming)
+
+* [PLT-1496] Use extended release channel in GKE by default
+
 ## 1.6.1-0.3.0 (2025-01-27)
 
 * [PLT-1330] CMEK - Service accounts & Secondary CIDR ranges adaption to R4.7
