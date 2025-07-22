@@ -2,7 +2,8 @@
 
 ## 1.6.1-0.4.0 (upcoming)
 
-* [PLT-1548] [GKE] Activar Workload Identity
+ * [PLT-1548] -  [GKE] Activar Workload Identity  - [`#44`](https://github.com/Stratio/cluster-api-provider-gcp/pull/44)
+ * [PLT-1330] -  CMEK, SA & CIDRs  - [`#37`](https://github.com/Stratio/cluster-api-provider-gcp/pull/37)
 
 ## 1.6.1-0.3.1 (2025-02-26)
 
