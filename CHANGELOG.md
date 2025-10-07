@@ -2,7 +2,7 @@
 
 ## 1.6.1-0.5.0 (upcoming)
 
-* Pending changelog
+* [PLT-2635] Fix golang vulnerabilities to max provider version 1.24.6
 
 ## Previous development
 
