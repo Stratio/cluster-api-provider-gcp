@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1-0.4.0 (upcoming)
+## 1.6.1-0.4.0 (2025-10-07)
 
 * [PLT-2635] Fix golang vulnerabilities to max provider version 1.24.6
 * [PLT-1548] [GKE] Activar Workload Identity
