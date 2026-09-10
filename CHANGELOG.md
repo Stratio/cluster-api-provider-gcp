@@ -1,16 +1,11 @@
 # Changelog
 
-<<<<<<< HEAD
 ## 1.6.1-0.5.0 (upcoming)
-=======
-## 1.6.1-0.4.1 (upcoming)
+
+## 1.6.1-0.4.0 (2025-10-07)
 
 * [PLT-4748] Bump `golang.org/x/net` (0.43.0 → 0.58.0), `golang.org/x/crypto` (0.42.0 → 0.56.0), `google.golang.org/grpc` (1.67.3 → 1.83.1), `go.opentelemetry.io/otel*` (1.39.0 → 1.44.0) and Go toolchain (1.24.6 → 1.26.0) to close vulnerabilities
 * Fix `Jenkinsfile`'s `@Library('libpipelines@master')` pointing at a branch that no longer exists in `Stratio/jenkins-bootstrap` (renamed to `main`), breaking CI on every PR regardless of code changes
-
-## 1.6.1-0.4.0 (2025-10-07)
->>>>>>> a5dde2fe ([PLT-4748] Bump vulnerable Go dependencies (x/net, x/crypto, grpc, otel) (#49))
-
 * [PLT-2635] Fix golang vulnerabilities to max provider version 1.24.6
 
 ## Previous development
