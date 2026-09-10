@@ -1,4 +1,4 @@
-@Library('libpipelines@main') _
+@Library('libpipelines@master') _
 
 hose {
     EMAIL = 'none@stratio.com'
