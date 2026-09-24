@@ -40,26 +40,43 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - gkeconfigs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - gkeconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - cluster.x-k8s.io
   resources:
   - clusters
   - clusters/status
-  - machines
-  - machines/status
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - cluster.x-k8s.io
-  resources:
   - machinepools
   - machinepools/status
   verbs:
   - get
   - list
   - patch
-  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  - machines/status
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
@@ -81,6 +98,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - gcpclusters/status
+  - gcpmachinepools/status
   - gcpmachines/status
   - gcpmanagedclusters/status
   - gcpmanagedcontrolplanes/status
@@ -89,6 +107,17 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - gcpmachinepools
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:

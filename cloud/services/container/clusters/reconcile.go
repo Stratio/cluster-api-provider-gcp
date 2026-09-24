@@ -28,13 +28,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/pkg/errors"
-	"google.golang.org/grpc/codes"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-gcp/util/reconciler"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -48,7 +46,7 @@ func (s *Service) Reconcile(ctx context.Context) (ctrl.Result, error) {
 	if err != nil {
 		s.scope.GCPManagedControlPlane.Status.Initialized = false
 		s.scope.GCPManagedControlPlane.Status.Ready = false
-		conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "describing cluster: %v", err)
 		return ctrl.Result{}, err
 	}
 	if cluster == nil {
@@ -58,84 +56,86 @@ func (s *Service) Reconcile(ctx context.Context) (ctrl.Result, error) {
 
 		nodePools, _, err := s.scope.GetAllNodePools(ctx)
 		if err != nil {
-			conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
-			conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
-			conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "fetching node pools: %v", err)
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "fetching node pools: %v", err)
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "fetching node pools: %v", err)
 			return ctrl.Result{}, err
 		}
 		if s.scope.IsAutopilotCluster() {
 			if len(nodePools) > 0 {
 				log.Error(ErrAutopilotClusterMachinePoolsNotAllowed, fmt.Sprintf("%d machine pools defined", len(nodePools)))
-				conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
-				conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
-				conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
 				return ctrl.Result{}, ErrAutopilotClusterMachinePoolsNotAllowed
 			}
 		} else {
 			if len(nodePools) == 0 {
 				log.Info("At least 1 node pool is required to create GKE cluster with autopilot disabled")
-				conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
-				conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
-				conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
+				v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneRequiresAtLeastOneNodePoolReason, clusterv1beta1.ConditionSeverityInfo, "")
 				return ctrl.Result{RequeueAfter: reconciler.DefaultRetryTime}, nil
 			}
 		}
 
 		if err = s.createCluster(ctx, &log); err != nil {
 			log.Error(err, "failed creating cluster")
-			conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
-			conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
-			conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "creating cluster: %v", err)
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "creating cluster: %v", err)
+			v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "creating cluster: %v", err)
 			return ctrl.Result{}, err
 		}
 		log.Info("Cluster created provisioning in progress")
-		conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition)
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition)
 		return ctrl.Result{RequeueAfter: reconciler.DefaultRetryTime}, nil
 	}
 
-	log.V(2).Info("gke cluster found", "status", cluster.Status)
-	s.scope.GCPManagedControlPlane.Status.CurrentVersion = convertToSdkMasterVersion(cluster.CurrentMasterVersion)
+	log.V(2).Info("gke cluster found", "status", cluster.GetStatus())
+	controlPlaneVersion := convertToSdkMasterVersion(cluster.GetCurrentMasterVersion())
+	s.scope.GCPManagedControlPlane.Status.CurrentVersion = controlPlaneVersion
+	s.scope.GCPManagedControlPlane.Status.Version = &controlPlaneVersion
 
-	switch cluster.Status {
+	switch cluster.GetStatus() {
 	case containerpb.Cluster_PROVISIONING:
 		log.Info("Cluster provisioning in progress")
-		conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition)
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneCreatingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition)
 		s.scope.GCPManagedControlPlane.Status.Initialized = false
 		s.scope.GCPManagedControlPlane.Status.Ready = false
 		return ctrl.Result{RequeueAfter: reconciler.DefaultRetryTime}, nil
 	case containerpb.Cluster_RECONCILING:
 		log.Info("Cluster reconciling in progress")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition)
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition)
 		s.scope.GCPManagedControlPlane.Status.Initialized = true
 		s.scope.GCPManagedControlPlane.Status.Ready = true
 		return ctrl.Result{RequeueAfter: reconciler.DefaultRetryTime}, nil
 	case containerpb.Cluster_STOPPING:
 		log.Info("Cluster stopping in progress")
-		conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
 		s.scope.GCPManagedControlPlane.Status.Initialized = false
 		s.scope.GCPManagedControlPlane.Status.Ready = false
 		return ctrl.Result{RequeueAfter: reconciler.DefaultRetryTime}, nil
 	case containerpb.Cluster_ERROR, containerpb.Cluster_DEGRADED:
 		var msg string
-		if len(cluster.Conditions) > 0 {
-			msg = cluster.Conditions[0].GetMessage()
+		if len(cluster.GetConditions()) > 0 {
+			msg = cluster.GetConditions()[0].GetMessage()
 		}
 		log.Error(errors.New("Cluster in error/degraded state"), msg, "name", s.scope.ClusterName())
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneErrorReason, clusterv1.ConditionSeverityError, "")
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneErrorReason, clusterv1beta1.ConditionSeverityError, "")
 		s.scope.GCPManagedControlPlane.Status.Ready = false
 		s.scope.GCPManagedControlPlane.Status.Initialized = false
 		return ctrl.Result{}, nil
 	case containerpb.Cluster_RUNNING:
 		log.Info("Cluster running")
 	default:
-		statusErr := NewErrUnexpectedClusterStatus(string(cluster.Status))
-		log.Error(statusErr, fmt.Sprintf("Unhandled cluster status %s", cluster.Status), "name", s.scope.ClusterName())
+		statusErr := NewErrUnexpectedClusterStatus(string(cluster.GetStatus()))
+		log.Error(statusErr, fmt.Sprintf("Unhandled cluster status %s", cluster.GetStatus()), "name", s.scope.ClusterName())
 		return ctrl.Result{}, statusErr
 	}
 
@@ -147,12 +147,12 @@ func (s *Service) Reconcile(ctx context.Context) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		}
 		log.Info("Cluster updating in progress")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition)
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition)
 		s.scope.GCPManagedControlPlane.Status.Initialized = true
 		s.scope.GCPManagedControlPlane.Status.Ready = true
 		return ctrl.Result{}, nil
 	}
-	conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition, infrav1exp.GKEControlPlaneUpdatedReason, clusterv1.ConditionSeverityInfo, "")
+	v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneUpdatingCondition, infrav1exp.GKEControlPlaneUpdatedReason, clusterv1beta1.ConditionSeverityInfo, "")
 
 	// Reconcile kubeconfig
 	err = s.reconcileKubeconfig(ctx, cluster, &log)
@@ -166,10 +166,10 @@ func (s *Service) Reconcile(ctx context.Context) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	s.scope.SetEndpoint(cluster.Endpoint)
-	conditions.MarkTrue(s.scope.ConditionSetter(), clusterv1.ReadyCondition)
-	conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition)
-	conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneCreatedReason, clusterv1.ConditionSeverityInfo, "")
+	s.scope.SetEndpoint(cluster.GetEndpoint())
+	v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition)
+	v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition)
+	v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneCreatingCondition, infrav1exp.GKEControlPlaneCreatedReason, clusterv1beta1.ConditionSeverityInfo, "")
 	s.scope.GCPManagedControlPlane.Status.Ready = true
 	s.scope.GCPManagedControlPlane.Status.Initialized = true
 
@@ -189,11 +189,11 @@ func (s *Service) Delete(ctx context.Context) (ctrl.Result, error) {
 	}
 	if cluster == nil {
 		log.Info("Cluster already deleted")
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition, infrav1exp.GKEControlPlaneDeletedReason, clusterv1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition, infrav1exp.GKEControlPlaneDeletedReason, clusterv1beta1.ConditionSeverityInfo, "")
 		return ctrl.Result{}, nil
 	}
 
-	switch cluster.Status {
+	switch cluster.GetStatus() {
 	case containerpb.Cluster_PROVISIONING:
 		log.Info("Cluster provisioning in progress")
 		return ctrl.Result{}, nil
@@ -202,23 +202,23 @@ func (s *Service) Delete(ctx context.Context) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	case containerpb.Cluster_STOPPING:
 		log.Info("Cluster stopping in progress")
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1.ConditionSeverityInfo, "")
-		conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1beta1.ConditionSeverityInfo, "")
+		v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
 		return ctrl.Result{}, nil
 	default:
 		break
 	}
 
 	if err = s.deleteCluster(ctx, &log); err != nil {
-		conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1.ConditionSeverityError, err.Error())
+		v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition, infrav1exp.GKEControlPlaneReconciliationFailedReason, clusterv1beta1.ConditionSeverityError, "deleting cluster: %v", err)
 		return ctrl.Result{}, err
 	}
 	log.Info("Cluster deleting in progress")
 	s.scope.GCPManagedControlPlane.Status.Initialized = false
 	s.scope.GCPManagedControlPlane.Status.Ready = false
-	conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1.ReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1.ConditionSeverityInfo, "")
-	conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1.ConditionSeverityInfo, "")
-	conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
+	v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), clusterv1beta1.ReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1beta1.ConditionSeverityInfo, "")
+	v1beta1conditions.MarkFalse(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneReadyCondition, infrav1exp.GKEControlPlaneDeletingReason, clusterv1beta1.ConditionSeverityInfo, "")
+	v1beta1conditions.MarkTrue(s.scope.ConditionSetter(), infrav1exp.GKEControlPlaneDeletingCondition)
 
 	return ctrl.Result{}, nil
 }
@@ -229,11 +229,8 @@ func (s *Service) describeCluster(ctx context.Context, log *logr.Logger) (*conta
 	}
 	cluster, err := s.scope.ManagedControlPlaneClient().GetCluster(ctx, getClusterRequest)
 	if err != nil {
-		var e *apierror.APIError
-		if ok := errors.As(err, &e); ok {
-			if e.GRPCStatus().Code() == codes.NotFound {
-				return nil, nil
-			}
+		if shared.IsNotFound(err) {
+			return nil, nil
 		}
 		log.Error(err, "Error getting GKE cluster", "name", s.scope.ClusterName())
 		return nil, err
@@ -252,77 +249,99 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 
 	isRegional := shared.IsRegional(s.scope.Region())
 	cluster := &containerpb.Cluster{
-		Name:       s.scope.ClusterName(),
-		Network:    *s.scope.GCPManagedCluster.Spec.Network.Name,
-		Subnetwork: s.getSubnetNameInClusterRegion(),
+		Name:        s.scope.ClusterName(),
+		Description: s.scope.GCPManagedControlPlane.Spec.Description,
+		Network:     *s.scope.GCPManagedCluster.Spec.Network.Name,
+		Subnetwork:  s.getSubnetNameInClusterRegion(),
 		Autopilot: &containerpb.Autopilot{
 			Enabled: s.scope.GCPManagedControlPlane.Spec.EnableAutopilot,
+		},
+		IdentityServiceConfig: &containerpb.IdentityServiceConfig{
+			Enabled: s.scope.GCPManagedControlPlane.Spec.EnableIdentityService,
 		},
 		ReleaseChannel: &containerpb.ReleaseChannel{
 			Channel: convertToSdkReleaseChannel(s.scope.GCPManagedControlPlane.Spec.ReleaseChannel),
 		},
-		MasterAuthorizedNetworksConfig: convertToSdkMasterAuthorizedNetworksConfig(s.scope.GCPManagedControlPlane.Spec.MasterAuthorizedNetworksConfig),
+		BinaryAuthorization: &containerpb.BinaryAuthorization{
+			EvaluationMode: convertToSdkBinaryAuthorizationEvaluationMode(s.scope.GCPManagedControlPlane.Spec.BinaryAuthorization),
+		},
+		ControlPlaneEndpointsConfig: &containerpb.ControlPlaneEndpointsConfig{
+			IpEndpointsConfig: &containerpb.ControlPlaneEndpointsConfig_IPEndpointsConfig{
+				AuthorizedNetworksConfig: convertToSdkMasterAuthorizedNetworksConfig(s.scope.GCPManagedControlPlane.Spec.MasterAuthorizedNetworksConfig),
+			},
+		},
 	}
-	if s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion != nil {
-		cluster.InitialClusterVersion = convertToSdkMasterVersion(*s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion)
+
+	if initialClusterVersionFromSpec := s.scope.GetControlPlaneVersion(); initialClusterVersionFromSpec != nil {
+		cluster.InitialClusterVersion = convertToSdkMasterVersion(*initialClusterVersionFromSpec)
 	}
+
 	if s.scope.GCPManagedControlPlane.Spec.ClusterNetwork != nil {
 		cn := s.scope.GCPManagedControlPlane.Spec.ClusterNetwork
+		if cn.UseIPAliases {
+			cluster.IpAllocationPolicy = &containerpb.IPAllocationPolicy{}
+			cluster.IpAllocationPolicy.UseIpAliases = cn.UseIPAliases
+			if cn.Pod != nil {
+				cluster.IpAllocationPolicy.ClusterIpv4CidrBlock = cn.Pod.CidrBlock
+			}
+			if cn.Service != nil {
+				cluster.IpAllocationPolicy.ServicesIpv4CidrBlock = cn.Service.CidrBlock
+			}
+		}
+
 		if cn.PrivateCluster != nil {
-			cluster.PrivateClusterConfig = &containerpb.PrivateClusterConfig{}
-			cluster.PrivateClusterConfig.EnablePrivateEndpoint = cn.PrivateCluster.EnablePrivateEndpoint
-			cluster.PrivateClusterConfig.EnablePrivateNodes = cn.PrivateCluster.EnablePrivateNodes
-			cluster.PrivateClusterConfig.MasterIpv4CidrBlock = cn.PrivateCluster.ControlPlaneCidrBlock
-		}
-	}
-	if s.scope.GCPManagedControlPlane.Spec.MonitoringConfig != nil {
-		cn := s.scope.GCPManagedControlPlane.Spec.MonitoringConfig
-		cluster.MonitoringConfig = &containerpb.MonitoringConfig{}
-		if cluster.MonitoringConfig.ManagedPrometheusConfig == nil {
-			cluster.MonitoringConfig.ManagedPrometheusConfig = &containerpb.ManagedPrometheusConfig{}
-		}
-		cluster.MonitoringConfig.ManagedPrometheusConfig.Enabled = cn.EnableManagedPrometheus
-	}
-	if s.scope.GCPManagedControlPlane.Spec.LoggingConfig != nil {
-		cn := s.scope.GCPManagedControlPlane.Spec.LoggingConfig
-		cluster.LoggingConfig = &containerpb.LoggingConfig{}
-		if cluster.LoggingConfig.ComponentConfig == nil {
-			cluster.LoggingConfig.ComponentConfig = &containerpb.LoggingComponentConfig{}
-		}
-		if cn.SystemComponents {
-			cluster.LoggingConfig.ComponentConfig.EnableComponents = append(cluster.LoggingConfig.ComponentConfig.EnableComponents, containerpb.LoggingComponentConfig_SYSTEM_COMPONENTS)
-		}
-		if cn.Workloads {
-			cluster.LoggingConfig.ComponentConfig.EnableComponents = append(cluster.LoggingConfig.ComponentConfig.EnableComponents, containerpb.LoggingComponentConfig_WORKLOADS)
-		}
-		// If neither SystemComponents nor Workloads is true, logging is disabled
-		if !cn.SystemComponents && !cn.Workloads {
-			cluster.LoggingConfig.ComponentConfig.EnableComponents = nil
+			enablePublicEndpoint := !cn.PrivateCluster.EnablePrivateEndpoint
+			cluster.ControlPlaneEndpointsConfig.IpEndpointsConfig.EnablePublicEndpoint = &enablePublicEndpoint
+			if cn.PrivateCluster.EnablePrivateEndpoint {
+				cluster.ControlPlaneEndpointsConfig.IpEndpointsConfig.AuthorizedNetworksConfig = &containerpb.MasterAuthorizedNetworksConfig{
+					Enabled: true,
+				}
+			}
+
+			// Initialize NetworkConfig before accessing DefaultEnablePrivateNodes
+			cluster.NetworkConfig = &containerpb.NetworkConfig{
+				DefaultSnatStatus: &containerpb.DefaultSnatStatus{
+					Disabled: cn.PrivateCluster.DisableDefaultSNAT,
+				},
+			}
+			cluster.NetworkConfig.DefaultEnablePrivateNodes = &cn.PrivateCluster.EnablePrivateNodes
+
+			cluster.PrivateClusterConfig = &containerpb.PrivateClusterConfig{
+				MasterIpv4CidrBlock: cn.PrivateCluster.ControlPlaneCidrBlock,
+				// EnablePrivateNodes is deprecated but GCP SDK raises an error if the value
+				// of this field is different from the value of NetworkConfig.DefaultEnablePrivateNodes
+				EnablePrivateNodes: cn.PrivateCluster.EnablePrivateNodes,
+			}
+			cluster.ControlPlaneEndpointsConfig.IpEndpointsConfig.GlobalAccess = &cn.PrivateCluster.ControlPlaneGlobalAccess
 		}
 	}
 
-	// Add IPAllocationPolicy for CIDR support
-	if s.scope.GCPManagedControlPlane.Spec.ClusterIpv4Cidr != nil {
-		cluster.ClusterIpv4Cidr = *s.scope.GCPManagedControlPlane.Spec.ClusterIpv4Cidr
-	}
-
-	if s.scope.GCPManagedControlPlane.Spec.IPAllocationPolicy != nil {
-		cluster.IpAllocationPolicy = infrav1exp.ConvertToSdkIPAllocationPolicy(s.scope.GCPManagedControlPlane.Spec.IPAllocationPolicy)
-	}
-
-	// Add support for Workload Identity
-	if s.scope.GCPManagedControlPlane.Spec.ClusterSecurity != nil && s.scope.GCPManagedControlPlane.Spec.ClusterSecurity.WorkloadIdentityConfig != nil {
-		cluster.WorkloadIdentityConfig = &containerpb.WorkloadIdentityConfig{
-			WorkloadPool: s.scope.GCPManagedControlPlane.Spec.ClusterSecurity.WorkloadIdentityConfig.WorkloadPool,
-		}
-	}
-
-	// If the cluster is autopilot, we don't need to specify node pools.
 	if !s.scope.IsAutopilotCluster() {
-		cluster.NodePools = scope.ConvertToSdkNodePools(nodePools, machinePools, isRegional, cluster.Name)
+		cluster.NodePools = scope.ConvertToSdkNodePools(nodePools, machinePools, isRegional, cluster.GetName())
+
+		if s.scope.GCPManagedControlPlane.Spec.LoggingService != nil {
+			cluster.LoggingService = s.scope.GCPManagedControlPlane.Spec.LoggingService.String()
+		}
+
+		if s.scope.GCPManagedControlPlane.Spec.MonitoringService != nil {
+			cluster.MonitoringService = s.scope.GCPManagedControlPlane.Spec.MonitoringService.String()
+		}
 	}
-	if s.scope.GCPManagedControlPlane.Spec.NetworkPolicy != nil {
-		cluster.NetworkPolicy = convertToSdkNetworkPolicy(s.scope.GCPManagedControlPlane.Spec.NetworkPolicy)
+
+	if s.scope.GCPManagedControlPlane.Spec.ClusterSecurity != nil {
+		cs := s.scope.GCPManagedControlPlane.Spec.ClusterSecurity
+		if cs.WorkloadIdentityConfig != nil {
+			cluster.WorkloadIdentityConfig = &containerpb.WorkloadIdentityConfig{
+				WorkloadPool: cs.WorkloadIdentityConfig.WorkloadPool,
+			}
+		}
+
+		if cs.AuthenticatorGroupConfig != nil {
+			cluster.AuthenticatorGroupsConfig = &containerpb.AuthenticatorGroupsConfig{
+				Enabled:       true,
+				SecurityGroup: cs.AuthenticatorGroupConfig.SecurityGroups,
+			}
+		}
 	}
 
 	createClusterRequest := &containerpb.CreateClusterRequest{
@@ -434,18 +453,20 @@ func convertToSdkMasterAuthorizedNetworksConfig(config *infrav1exp.MasterAuthori
 	}
 }
 
-// convertToSdkNetworkPolicy converts NetworkPolicy config to a value that is used by GCP SDK.
-func convertToSdkNetworkPolicy(networkPolicy *infrav1exp.NetworkPolicy) *containerpb.NetworkPolicy {
-	sdkNetworkPolicy := containerpb.NetworkPolicy{
-		Enabled: true,
+// convertToSdkBinaryAuthorizationEvaluationMode converts the BinaryAuthorization string to the SDK int32 value.
+func convertToSdkBinaryAuthorizationEvaluationMode(mode *infrav1exp.BinaryAuthorization) containerpb.BinaryAuthorization_EvaluationMode {
+	if mode == nil {
+		return containerpb.BinaryAuthorization_EVALUATION_MODE_UNSPECIFIED
 	}
-	switch networkPolicy.Provider {
-	case "calico":
-		sdkNetworkPolicy.Provider = containerpb.NetworkPolicy_CALICO
+
+	switch *mode {
+	case infrav1exp.EvaluationModeDisabled:
+		return containerpb.BinaryAuthorization_DISABLED
+	case infrav1exp.EvaluationModeProjectSingletonPolicyEnforce:
+		return containerpb.BinaryAuthorization_PROJECT_SINGLETON_POLICY_ENFORCE
 	default:
-		sdkNetworkPolicy.Provider = containerpb.NetworkPolicy_PROVIDER_UNSPECIFIED
+		return containerpb.BinaryAuthorization_EVALUATION_MODE_UNSPECIFIED
 	}
-	return &sdkNetworkPolicy
 }
 
 func (s *Service) checkDiffAndPrepareUpdate(existingCluster *containerpb.Cluster, log *logr.Logger) (bool, *containerpb.UpdateClusterRequest) {
@@ -455,49 +476,65 @@ func (s *Service) checkDiffAndPrepareUpdate(existingCluster *containerpb.Cluster
 	clusterUpdate := containerpb.ClusterUpdate{}
 	// Release channel
 	desiredReleaseChannel := convertToSdkReleaseChannel(s.scope.GCPManagedControlPlane.Spec.ReleaseChannel)
-	if desiredReleaseChannel != existingCluster.ReleaseChannel.Channel {
-		log.V(2).Info("Release channel update required", "current", existingCluster.ReleaseChannel.Channel, "desired", desiredReleaseChannel)
+	if desiredReleaseChannel != existingCluster.GetReleaseChannel().GetChannel() {
+		log.V(2).Info("Release channel update required", "current", existingCluster.GetReleaseChannel().GetChannel(), "desired", desiredReleaseChannel)
 		needUpdate = true
 		clusterUpdate.DesiredReleaseChannel = &containerpb.ReleaseChannel{
 			Channel: desiredReleaseChannel,
 		}
 	}
 	// Master version
-	if s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion != nil {
-		desiredMasterVersion := convertToSdkMasterVersion(*s.scope.GCPManagedControlPlane.Spec.ControlPlaneVersion)
-		existingClusterMasterVersion := convertToSdkMasterVersion(existingCluster.CurrentMasterVersion)
+	if desiredMasterVersionFromSpec := s.scope.GetControlPlaneVersion(); desiredMasterVersionFromSpec != nil {
+		desiredMasterVersion := convertToSdkMasterVersion(*desiredMasterVersionFromSpec)
+		existingClusterMasterVersion := convertToSdkMasterVersion(existingCluster.GetCurrentMasterVersion())
 		if desiredMasterVersion != existingClusterMasterVersion {
 			needUpdate = true
 			clusterUpdate.DesiredMasterVersion = desiredMasterVersion
 			log.V(2).Info("Master version update required", "current", existingClusterMasterVersion, "desired", desiredMasterVersion)
 		}
 	}
+
+	// LoggingService
+	if specLoggingService := s.scope.GCPManagedControlPlane.Spec.LoggingService; specLoggingService != nil {
+		if existingCluster.GetLoggingService() != specLoggingService.String() {
+			needUpdate = true
+			clusterUpdate.DesiredLoggingService = specLoggingService.String()
+			log.V(2).Info("LoggingService config update required", "current", existingCluster.GetLoggingService(), "desired", specLoggingService.String())
+		}
+	}
+
+	// MonitoringService
+	if specMonitoringService := s.scope.GCPManagedControlPlane.Spec.MonitoringService; specMonitoringService != nil {
+		if existingCluster.GetMonitoringService() != specMonitoringService.String() {
+			needUpdate = true
+			clusterUpdate.DesiredMonitoringService = specMonitoringService.String()
+			log.V(2).Info("MonitoringService config update required", "current", existingCluster.GetMonitoringService(), "desired", specMonitoringService.String())
+		}
+	}
+
 	// DesiredMasterAuthorizedNetworksConfig
 	// When desiredMasterAuthorizedNetworksConfig is nil, it means that the user wants to disable the feature.
 	desiredMasterAuthorizedNetworksConfig := convertToSdkMasterAuthorizedNetworksConfig(s.scope.GCPManagedControlPlane.Spec.MasterAuthorizedNetworksConfig)
-	if !compareMasterAuthorizedNetworksConfig(desiredMasterAuthorizedNetworksConfig, existingCluster.MasterAuthorizedNetworksConfig) {
-		needUpdate = true
-		clusterUpdate.DesiredMasterAuthorizedNetworksConfig = desiredMasterAuthorizedNetworksConfig
-		log.V(2).Info("Master authorized networks config update required", "current", existingCluster.MasterAuthorizedNetworksConfig, "desired", desiredMasterAuthorizedNetworksConfig)
-	}
-	log.V(4).Info("Master authorized networks config update check", "current", existingCluster.MasterAuthorizedNetworksConfig)
-	if desiredMasterAuthorizedNetworksConfig != nil {
-		log.V(4).Info("Master authorized networks config update check", "desired", desiredMasterAuthorizedNetworksConfig)
-	}
-
-	// WorkloadIdentityConfig
-	desiredWorkloadIdentityConfig := &containerpb.WorkloadIdentityConfig{}
-	if s.scope.GCPManagedControlPlane.Spec.ClusterSecurity != nil &&
-		s.scope.GCPManagedControlPlane.Spec.ClusterSecurity.WorkloadIdentityConfig != nil {
-		desiredWorkloadIdentityConfig = &containerpb.WorkloadIdentityConfig{
-			WorkloadPool: s.scope.GCPManagedControlPlane.Spec.ClusterSecurity.WorkloadIdentityConfig.WorkloadPool,
+	var existingAuthorizedNetworksConfig *containerpb.MasterAuthorizedNetworksConfig
+	if cpEndpointsConfig := existingCluster.GetControlPlaneEndpointsConfig(); cpEndpointsConfig != nil {
+		if ipEndpointsConfig := cpEndpointsConfig.GetIpEndpointsConfig(); ipEndpointsConfig != nil {
+			existingAuthorizedNetworksConfig = ipEndpointsConfig.GetAuthorizedNetworksConfig()
 		}
 	}
-	if !compareWorkloadIdentityConfig(desiredWorkloadIdentityConfig, existingCluster.WorkloadIdentityConfig) {
+	if !compareMasterAuthorizedNetworksConfig(desiredMasterAuthorizedNetworksConfig, existingAuthorizedNetworksConfig) {
 		needUpdate = true
-		clusterUpdate.DesiredWorkloadIdentityConfig = desiredWorkloadIdentityConfig
-		log.V(2).Info("WorkloadIdentityConfig update required", "current", existingCluster.WorkloadIdentityConfig,
-			"desired", desiredWorkloadIdentityConfig)
+		if clusterUpdate.GetDesiredControlPlaneEndpointsConfig() == nil {
+			clusterUpdate.DesiredControlPlaneEndpointsConfig = &containerpb.ControlPlaneEndpointsConfig{}
+		}
+		if clusterUpdate.GetDesiredControlPlaneEndpointsConfig().GetIpEndpointsConfig() == nil {
+			clusterUpdate.DesiredControlPlaneEndpointsConfig.IpEndpointsConfig = &containerpb.ControlPlaneEndpointsConfig_IPEndpointsConfig{}
+		}
+		clusterUpdate.DesiredControlPlaneEndpointsConfig.IpEndpointsConfig.AuthorizedNetworksConfig = desiredMasterAuthorizedNetworksConfig
+		log.V(2).Info("Master authorized networks config update required", "current", existingAuthorizedNetworksConfig, "desired", desiredMasterAuthorizedNetworksConfig)
+	}
+	log.V(4).Info("Master authorized networks config update check", "current", existingAuthorizedNetworksConfig)
+	if desiredMasterAuthorizedNetworksConfig != nil {
+		log.V(4).Info("Master authorized networks config update check", "desired", desiredMasterAuthorizedNetworksConfig)
 	}
 
 	updateClusterRequest := containerpb.UpdateClusterRequest{
@@ -517,38 +554,21 @@ func compareMasterAuthorizedNetworksConfig(a, b *containerpb.MasterAuthorizedNet
 		return false
 	}
 
-	if a.Enabled != b.Enabled {
+	if a.GetEnabled() != b.GetEnabled() {
 		return false
 	}
 	if (a.GcpPublicCidrsAccessEnabled == nil && b.GcpPublicCidrsAccessEnabled != nil) || (a.GcpPublicCidrsAccessEnabled != nil && b.GcpPublicCidrsAccessEnabled == nil) {
 		return false
 	}
-	if a.GcpPublicCidrsAccessEnabled != nil && b.GcpPublicCidrsAccessEnabled != nil && *a.GcpPublicCidrsAccessEnabled != *b.GcpPublicCidrsAccessEnabled {
+	if a.GcpPublicCidrsAccessEnabled != nil && b.GcpPublicCidrsAccessEnabled != nil && a.GetGcpPublicCidrsAccessEnabled() != b.GetGcpPublicCidrsAccessEnabled() {
 		return false
 	}
 	// if one cidrBlocks is nil, but the other is empty, they are equal.
-	if (a.CidrBlocks == nil && b.CidrBlocks != nil && len(b.CidrBlocks) == 0) || (b.CidrBlocks == nil && a.CidrBlocks != nil && len(a.CidrBlocks) == 0) {
+	if (a.CidrBlocks == nil && b.CidrBlocks != nil && len(b.GetCidrBlocks()) == 0) || (b.CidrBlocks == nil && a.CidrBlocks != nil && len(a.GetCidrBlocks()) == 0) {
 		return true
 	}
-	if !cmp.Equal(a.CidrBlocks, b.CidrBlocks, cmpopts.IgnoreUnexported(containerpb.MasterAuthorizedNetworksConfig_CidrBlock{})) {
+	if !cmp.Equal(a.GetCidrBlocks(), b.GetCidrBlocks(), cmpopts.IgnoreUnexported(containerpb.MasterAuthorizedNetworksConfig_CidrBlock{})) {
 		return false
 	}
 	return true
-}
-
-// compareWorkloadIdentityConfig compares if two WorkloadIdentityConfig are equal.
-func compareWorkloadIdentityConfig(a, b *containerpb.WorkloadIdentityConfig) bool {
-	if a == nil && b == nil {
-		return true
-	}
-
-	if a == nil {
-		a = &containerpb.WorkloadIdentityConfig{}
-	}
-
-	if b == nil {
-		b = &containerpb.WorkloadIdentityConfig{}
-	}
-
-	return cmp.Equal(a, b, cmpopts.IgnoreUnexported(containerpb.WorkloadIdentityConfig{}))
 }

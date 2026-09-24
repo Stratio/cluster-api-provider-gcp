@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.4
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: gcpmanagedcontrolplanes.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
@@ -30,6 +30,10 @@ spec:
     - description: The current Kubernetes version
       jsonPath: .status.currentVersion
       name: CurrentVersion
+      type: string
+    - description: The Kubernetes version of the GKE control plane
+      jsonPath: .status.version
+      name: Version
       type: string
     - description: API Endpoint
       jsonPath: .spec.endpoint
@@ -62,13 +66,13 @@ spec:
           spec:
             description: GCPManagedControlPlaneSpec defines the desired state of GCPManagedControlPlane.
             properties:
-              clusterIpv4Cidr:
+              binaryAuthorization:
                 description: |-
-                  ClusterIpv4Cidr is the IP address range of the container pods in the GKE cluster, in
-                  [CIDR](http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing)
-                  notation (e.g. `10.96.0.0/14`).
-                  If not specified then one will be automatically chosen.
-                  If this field is specified then IPAllocationPolicy.ClusterIpv4CidrBlock should be left blank.
+                  BinaryAuthorization represents the mode of operation of Binary Authorization for the GKE cluster.
+                  This feature is disabled if this field is not specified.
+                enum:
+                - disabled
+                - project_singleton_policy_enforce
                 type: string
               clusterName:
                 description: |-
@@ -79,6 +83,17 @@ spec:
               clusterNetwork:
                 description: ClusterNetwork define the cluster network.
                 properties:
+                  pod:
+                    description: Pod defines the range of CIDRBlock list from where
+                      it gets the IP address.
+                    properties:
+                      cidrBlock:
+                        description: |-
+                          CidrBlock is where all pods in the cluster are assigned an IP address from this range. Enter a range
+                          (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+                          This setting is permanent.
+                        type: string
+                    type: object
                   privateCluster:
                     description: PrivateCluster defines the private cluster spec.
                     properties:
@@ -87,6 +102,14 @@ spec:
                           ControlPlaneCidrBlock is the IP range in CIDR notation to use for the hosted master network. This range must not
                           overlap with any other ranges in use within the cluster's network. Honored when enabled is true.
                         type: string
+                      controlPlaneGlobalAccess:
+                        description: ControlPlaneGlobalAccess is whenever master is
+                          accessible globally or not. Honored when enabled is true.
+                        type: boolean
+                      disableDefaultSNAT:
+                        description: DisableDefaultSNAT disables cluster default sNAT
+                          rules. Honored when enabled is true.
+                        type: boolean
                       enablePrivateEndpoint:
                         description: |-
                           EnablePrivateEndpoint: Whether the master's internal IP
@@ -100,10 +123,37 @@ spec:
                           private networking.
                         type: boolean
                     type: object
+                  service:
+                    description: Service defines the range of CIDRBlock list from
+                      where it gets the IP address.
+                    properties:
+                      cidrBlock:
+                        description: |-
+                          CidrBlock is where cluster services will be assigned an IP address from this IP address range. Enter a range
+                          (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+                          This setting is permanent.
+                        type: string
+                    type: object
+                  useIPAliases:
+                    description: |-
+                      UseIPAliases is whether alias IPs will be used for pod IPs in the cluster. If false, routes will be used for
+                      pod IPs in the cluster.
+                    type: boolean
                 type: object
               clusterSecurity:
                 description: ClusterSecurity defines the cluster security.
                 properties:
+                  authenticatorGroupConfig:
+                    description: AuthenticatorGroupConfig is RBAC security group for
+                      use with Google security groups in Kubernetes RBAC.
+                    properties:
+                      securityGroups:
+                        description: SecurityGroups is the name of the security group-of-groups
+                          to be used.
+                        type: string
+                    required:
+                    - securityGroups
+                    type: object
                   workloadIdentityConfig:
                     description: |-
                       WorkloadIdentityConfig allows workloads in your GKE clusters to impersonate Identity and Access Management (IAM)
@@ -123,76 +173,50 @@ spec:
                   ControlPlaneVersion represents the control plane version of the GKE cluster.
                   If not specified, the default version currently supported by GKE will be
                   used.
+
+                  Deprecated: This field will soon be removed and you are expected to use Version instead.
+                type: string
+              description:
+                description: Description describe the cluster.
                 type: string
               enableAutopilot:
                 description: EnableAutopilot indicates whether to enable autopilot
                   for this GKE cluster.
+                type: boolean
+              enableIdentityService:
+                description: EnableIdentityService indicates whether to enable Identity
+                  Service component for this GKE cluster.
                 type: boolean
               endpoint:
                 description: Endpoint represents the endpoint used to communicate
                   with the control plane.
                 properties:
                   host:
-                    description: The hostname on which the API server is serving.
+                    description: host is the hostname on which the API server is serving.
+                    maxLength: 512
                     type: string
                   port:
-                    description: The port on which the API server is serving.
+                    description: port is the port on which the API server is serving.
                     format: int32
                     type: integer
-                required:
-                - host
-                - port
-                type: object
-              ipAllocationPolicy:
-                description: |-
-                  IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
-                  If not specified then GKE default values will be used.
-                properties:
-                  clusterIpv4CidrBlock:
-                    description: |-
-                      ClusterIpv4CidrBlock represents the IP address range for the GKE cluster pod IPs. If this field is set, then
-                      GCPManagedControlPlaneSpec.ClusterIpv4Cidr must be left blank.
-                      This field is only applicable when use_ip_aliases is set to true.
-                      If not specified the range will be chosen with the default size.
-                    type: string
-                  clusterSecondaryRangeName:
-                    description: |-
-                      ClusterSecondaryRangeName represents the name of the secondary range to be used for the GKE cluster CIDR block.
-                      The range will be used for pod IP addresses and must be an existing secondary range associated with the cluster subnetwork.
-                      This field is only applicable when use_ip_aliases is set to true.
-                    type: string
-                  servicesIpv4CidrBlock:
-                    description: |-
-                      ServicesIpv4CidrBlock represents the IP address range for services IPs in the GKE cluster.
-                      This field is only applicable when use_ip_aliases is set to true.
-                      If not specified the range will be chosen with the default size.
-                    type: string
-                  servicesSecondaryRangeName:
-                    description: |-
-                      ServicesSecondaryRangeName represents the name of the secondary range to be used for the services CIDR block.
-                      The range will be used for service ClusterIPs and must be an existing secondary range associated with the cluster subnetwork.
-                      This field is only applicable when use_ip_aliases is set to true.
-                    type: string
-                  useIPAliases:
-                    description: |-
-                      UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster.
-                      If unspecified will default to false.
-                    type: boolean
                 type: object
               location:
                 description: |-
                   Location represents the location (region or zone) in which the GKE cluster
                   will be created.
                 type: string
-              loggingConfig:
-                description: LoggingConfig defines the logging on Cluster.
-                properties:
-                  systemComponents:
-                    description: SystemComponents enables the system component logging.
-                    type: boolean
-                  workloads:
-                    description: Workloads enables the Workloads logging.
-                    type: boolean
+              loggingService:
+                description: |-
+                  LoggingService represents configuration of logging service feature of the GKE cluster.
+                  Possible values: none, logging.googleapis.com/kubernetes (default).
+                  Value is ignored when enableAutopilot = true.
+                type: string
+              machineTemplate:
+                description: |-
+                  MachineTemplate contains information about how machines
+                  should be shaped when creating or updating a control plane.
+                  For the GCPManagedControlPlaneTemplate, this field is used
+                  only to fulfill the CAPI contract.
                 type: object
               master_authorized_networks_config:
                 description: |-
@@ -222,25 +246,12 @@ spec:
                       Public IP addresses.
                     type: boolean
                 type: object
-              monitoringConfig:
-                description: MonitoringConfig defines the monitoring on Cluster.
-                properties:
-                  enableManagedPrometheus:
-                    description: EnableManagedPrometheus Enable Google Cloud Managed
-                      Service for Prometheus in the cluster.
-                    type: boolean
-                type: object
-              networkPolicy:
+              monitoringService:
                 description: |-
-                  NetworkPolicy represents configuration options for NetworkPolicy feature of the GKE cluster.
-                  This feature is disabled if this field is not specified.
-                properties:
-                  provider:
-                    description: The selected network policy provider.
-                    enum:
-                    - calico
-                    type: string
-                type: object
+                  MonitoringService represents configuration of monitoring service feature of the GKE cluster.
+                  Possible values: none, monitoring.googleapis.com/kubernetes (default).
+                  Value is ignored when enableAutopilot = true.
+                type: string
               project:
                 description: Project is the name of the project to deploy the cluster
                   to.
@@ -253,6 +264,12 @@ spec:
                 - regular
                 - stable
                 - extended
+                type: string
+              version:
+                description: |-
+                  Version represents the control plane version of the GKE cluster.
+                  If not specified, the default version currently supported by GKE will be
+                  used.
                 type: string
             required:
             - location
@@ -271,36 +288,43 @@ spec:
                   properties:
                     lastTransitionTime:
                       description: |-
-                        Last time the condition transitioned from one status to another.
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
                         This should be when the underlying condition changed. If that is not known, then using the time when
                         the API field changed is acceptable.
                       format: date-time
                       type: string
                     message:
                       description: |-
-                        A human readable message indicating details about the transition.
+                        message is a human readable message indicating details about the transition.
                         This field may be empty.
+                      maxLength: 10240
+                      minLength: 1
                       type: string
                     reason:
                       description: |-
-                        The reason for the condition's last transition in CamelCase.
+                        reason is the reason for the condition's last transition in CamelCase.
                         The specific API may choose whether or not this field is considered a guaranteed API.
-                        This field may not be empty.
+                        This field may be empty.
+                      maxLength: 256
+                      minLength: 1
                       type: string
                     severity:
                       description: |-
-                        Severity provides an explicit classification of Reason code, so the users or machines can immediately
+                        severity provides an explicit classification of Reason code, so the users or machines can immediately
                         understand the current situation and act accordingly.
                         The Severity field MUST be set only when Status=False.
+                      maxLength: 32
                       type: string
                     status:
-                      description: Status of the condition, one of True, False, Unknown.
+                      description: status of the condition, one of True, False, Unknown.
                       type: string
                     type:
                       description: |-
-                        Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
                         Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
                         can be useful (see .node.status.conditions), the ability to deconflict is important.
+                      maxLength: 256
+                      minLength: 1
                       type: string
                   required:
                   - lastTransitionTime
@@ -309,8 +333,10 @@ spec:
                   type: object
                 type: array
               currentVersion:
-                description: CurrentVersion shows the current version of the GKE control
-                  plane.
+                description: |-
+                  CurrentVersion shows the current version of the GKE control plane.
+
+                  Deprecated: This field will soon be removed and you are expected to use Version instead.
                 type: string
               initialized:
                 description: |-
@@ -323,6 +349,9 @@ spec:
                   Ready denotes that the GCPManagedControlPlane API Server is ready to
                   receive requests.
                 type: boolean
+              version:
+                description: Version represents the version of the GKE control plane.
+                type: string
             required:
             - ready
             type: object

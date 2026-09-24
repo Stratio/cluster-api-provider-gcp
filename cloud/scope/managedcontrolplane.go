@@ -22,16 +22,17 @@ import (
 
 	"sigs.k8s.io/cluster-api-provider-gcp/util/location"
 
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 
 	container "cloud.google.com/go/container/apiv1"
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	resourcemanager "cloud.google.com/go/resourcemanager/apiv3"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	clusterv1exp "sigs.k8s.io/cluster-api/exp/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/patch"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -70,14 +71,14 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 	}
 
 	if params.ManagedClusterClient == nil {
-		managedClusterClient, err := newClusterManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client)
+		managedClusterClient, err := newClusterManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.ServiceEndpoints)
 		if err != nil {
 			return nil, errors.Errorf("failed to create gcp managed cluster client: %v", err)
 		}
 		params.ManagedClusterClient = managedClusterClient
 	}
 	if params.TagBindingsClient == nil {
-		tagBindingsClient, err := newTagBindingsClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.Region)
+		tagBindingsClient, err := newTagBindingsClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.Region, params.GCPManagedCluster.Spec.ServiceEndpoints)
 		if err != nil {
 			return nil, errors.Errorf("failed to create gcp tag bindings client: %v", err)
 		}
@@ -85,14 +86,14 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 	}
 	if params.CredentialsClient == nil {
 		var credentialsClient *credentials.IamCredentialsClient
-		credentialsClient, err = newIamCredentialsClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client)
+		credentialsClient, err = newIamCredentialsClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.ServiceEndpoints)
 		if err != nil {
 			return nil, errors.Errorf("failed to create gcp credentials client: %v", err)
 		}
 		params.CredentialsClient = credentialsClient
 	}
 
-	helper, err := patch.NewHelper(params.GCPManagedControlPlane, params.Client)
+	helper, err := v1beta1patch.NewHelper(params.GCPManagedControlPlane, params.Client)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init patch helper")
 	}
@@ -113,7 +114,7 @@ func NewManagedControlPlaneScope(ctx context.Context, params ManagedControlPlane
 // ManagedControlPlaneScope defines the basic context for an actuator to operate upon.
 type ManagedControlPlaneScope struct {
 	client      client.Client
-	patchHelper *patch.Helper
+	patchHelper *v1beta1patch.Helper
 
 	Cluster                *clusterv1.Cluster
 	GCPManagedCluster      *infrav1exp.GCPManagedCluster
@@ -123,7 +124,7 @@ type ManagedControlPlaneScope struct {
 	credentialsClient      *credentials.IamCredentialsClient
 	credential             *Credential
 
-	AllMachinePools        []clusterv1exp.MachinePool
+	AllMachinePools        []clusterv1.MachinePool
 	AllManagedMachinePools []infrav1exp.GCPManagedMachinePool
 }
 
@@ -132,7 +133,7 @@ func (s *ManagedControlPlaneScope) PatchObject() error {
 	return s.patchHelper.Patch(
 		context.TODO(),
 		s.GCPManagedControlPlane,
-		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+		v1beta1patch.WithOwnedConditions{Conditions: []clusterv1beta1.ConditionType{
 			infrav1exp.GKEControlPlaneReadyCondition,
 			infrav1exp.GKEControlPlaneCreatingCondition,
 			infrav1exp.GKEControlPlaneUpdatingCondition,
@@ -149,7 +150,7 @@ func (s *ManagedControlPlaneScope) Close() error {
 }
 
 // ConditionSetter return a condition setter (which is GCPManagedControlPlane itself).
-func (s *ManagedControlPlaneScope) ConditionSetter() conditions.Setter {
+func (s *ManagedControlPlaneScope) ConditionSetter() v1beta1conditions.Setter {
 	return s.GCPManagedControlPlane
 }
 
@@ -179,26 +180,32 @@ func (s *ManagedControlPlaneScope) GetCredential() *Credential {
 }
 
 // GetAllNodePools gets all node pools for the control plane.
-func (s *ManagedControlPlaneScope) GetAllNodePools(ctx context.Context) ([]infrav1exp.GCPManagedMachinePool, []clusterv1exp.MachinePool, error) {
-	if s.AllManagedMachinePools == nil || len(s.AllManagedMachinePools) == 0 {
+func (s *ManagedControlPlaneScope) GetAllNodePools(ctx context.Context) ([]infrav1exp.GCPManagedMachinePool, []clusterv1.MachinePool, error) {
+	if len(s.AllManagedMachinePools) == 0 {
 		listOptions := []client.ListOption{
 			client.InNamespace(s.GCPManagedControlPlane.Namespace),
 			client.MatchingLabels(map[string]string{clusterv1.ClusterNameLabel: s.Cluster.Name}),
 		}
 
-		machinePoolList := &clusterv1exp.MachinePoolList{}
+		machinePoolList := &clusterv1.MachinePoolList{}
 		if err := s.client.List(ctx, machinePoolList, listOptions...); err != nil {
 			return nil, nil, err
 		}
-		managedMachinePoolList := &infrav1exp.GCPManagedMachinePoolList{}
-		if err := s.client.List(ctx, managedMachinePoolList, listOptions...); err != nil {
-			return nil, nil, err
-		}
-		if len(machinePoolList.Items) != len(managedMachinePoolList.Items) {
-			return nil, nil, fmt.Errorf("machinePoolList length (%d) != managedMachinePoolList length (%d)", len(machinePoolList.Items), len(managedMachinePoolList.Items))
-		}
+
 		s.AllMachinePools = machinePoolList.Items
-		s.AllManagedMachinePools = managedMachinePoolList.Items
+		s.AllManagedMachinePools = []infrav1exp.GCPManagedMachinePool{}
+		for _, machinePool := range s.AllMachinePools {
+			managedMachinePool := infrav1exp.GCPManagedMachinePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      machinePool.Spec.Template.Spec.InfrastructureRef.Name,
+					Namespace: machinePool.GetNamespace(),
+				},
+			}
+			if err := s.client.Get(ctx, client.ObjectKeyFromObject(&managedMachinePool), &managedMachinePool); err != nil {
+				return nil, nil, fmt.Errorf("getting GCPManagedMachinePool %s for MachinePool %s: %w", managedMachinePool.GetName(), machinePool.GetName(), err)
+			}
+			s.AllManagedMachinePools = append(s.AllManagedMachinePools, managedMachinePool)
+		}
 	}
 
 	return s.AllManagedMachinePools, s.AllMachinePools, nil
@@ -212,7 +219,7 @@ func (s *ManagedControlPlaneScope) Region() string {
 
 // ClusterLocation returns the location of the cluster.
 func (s *ManagedControlPlaneScope) ClusterLocation() string {
-	return fmt.Sprintf("projects/%s/locations/%s", s.GCPManagedControlPlane.Spec.Project, s.Region())
+	return fmt.Sprintf("projects/%s/locations/%s", s.GCPManagedControlPlane.Spec.Project, s.GCPManagedControlPlane.Spec.Location)
 }
 
 // ClusterFullName returns the full name of the cluster.
@@ -227,7 +234,7 @@ func (s *ManagedControlPlaneScope) ClusterName() string {
 
 // SetEndpoint sets the Endpoint of GCPManagedControlPlane.
 func (s *ManagedControlPlaneScope) SetEndpoint(host string) {
-	s.GCPManagedControlPlane.Spec.Endpoint = clusterv1.APIEndpoint{
+	s.GCPManagedControlPlane.Spec.Endpoint = clusterv1beta1.APIEndpoint{
 		Host: host,
 		Port: APIServerPort,
 	}
@@ -236,4 +243,15 @@ func (s *ManagedControlPlaneScope) SetEndpoint(host string) {
 // IsAutopilotCluster returns true if this is an autopilot cluster.
 func (s *ManagedControlPlaneScope) IsAutopilotCluster() bool {
 	return s.GCPManagedControlPlane.Spec.EnableAutopilot
+}
+
+// GetControlPlaneVersion returns the control plane version from the specification.
+func (s *ManagedControlPlaneScope) GetControlPlaneVersion() *string {
+	if s.GCPManagedControlPlane.Spec.Version != nil {
+		return s.GCPManagedControlPlane.Spec.Version
+	}
+	if s.GCPManagedControlPlane.Spec.ControlPlaneVersion != nil {
+		return s.GCPManagedControlPlane.Spec.ControlPlaneVersion
+	}
+	return nil
 }

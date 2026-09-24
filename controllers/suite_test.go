@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	infrav1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -50,9 +50,8 @@ func init() {
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 	// fetch the current config
-	suiteConfig, reporterConfig := GinkgoConfiguration()
+	_, reporterConfig := GinkgoConfiguration()
 	// adjust it
-	suiteConfig.FailFast = true
 	reporterConfig.FullTrace = true
 	RunSpecs(t, "Controller Suite", reporterConfig)
 }

@@ -18,6 +18,8 @@ package scope
 
 import (
 	"context"
+	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	resourcemanager "cloud.google.com/go/resourcemanager/apiv3"
 	"github.com/GoogleCloudPlatform/k8s-cloud-provider/pkg/cloud"
 	"github.com/pkg/errors"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 	"k8s.io/client-go/pkg/version"
@@ -42,6 +45,12 @@ type GCPServices struct {
 
 // GCPRateLimiter implements cloud.RateLimiter.
 type GCPRateLimiter struct{}
+
+// credentialHeader is a helper struct used for determining the type of
+// GCP credentials from JSON data.
+type credentialHeader struct {
+	Type string `json:"type"`
+}
 
 // Accept blocks until the operation can be performed.
 func (rl *GCPRateLimiter) Accept(ctx context.Context, key *cloud.RateLimitKey) error {
@@ -83,16 +92,60 @@ func defaultClientOptions(ctx context.Context, credentialsRef *infrav1.ObjectRef
 		if err != nil {
 			return nil, fmt.Errorf("getting gcp credentials from reference %s: %w", credentialsRef, err)
 		}
-		opts = append(opts, option.WithCredentialsJSON(rawData))
+
+		header := &credentialHeader{}
+		if err := json.Unmarshal(rawData, header); err != nil {
+			return nil, fmt.Errorf("parsing gcp credential type from reference %s: %w", credentialsRef, err)
+		}
+
+		var optCredType option.CredentialsType
+		var googleCredType google.CredentialsType
+		switch header.Type {
+		case "service_account":
+			optCredType = option.ServiceAccount
+			googleCredType = google.ServiceAccount
+		case "external_account":
+			optCredType = option.ExternalAccount
+			googleCredType = google.ExternalAccount
+		case "impersonated_service_account":
+			optCredType = option.ImpersonatedServiceAccount
+			googleCredType = google.ImpersonatedServiceAccount
+		default:
+			optCredType = option.ServiceAccount
+			googleCredType = google.ServiceAccount
+		}
+		opts = append(opts, option.WithAuthCredentialsJSON(optCredType, rawData))
+
+		// Extract credentials to get universe domain for sovereign clouds
+		// Use CredentialsFromJSONWithType to avoid deprecated CredentialsFromJSON
+		creds, err := google.CredentialsFromJSONWithType(ctx, rawData, googleCredType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract credentials from JSON: %w", err)
+		}
+
+		// CredentialsFromJSONWithType never returns (nil, nil), but guard defensively.
+		if creds == nil {
+			return nil, stderrors.New("credentials are nil after parsing JSON")
+		}
+
+		universeDomain, err := creds.GetUniverseDomain()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get universe domain from credentials: %w", err)
+		}
+		opts = append(opts, option.WithUniverseDomain(universeDomain))
 	}
 
 	return opts, nil
 }
 
-func newComputeService(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client) (*compute.Service, error) {
+func newComputeService(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, endpoints *infrav1.ServiceEndpoints) (*compute.Service, error) {
 	opts, err := defaultClientOptions(ctx, credentialsRef, crClient)
 	if err != nil {
 		return nil, fmt.Errorf("getting default gcp client options: %w", err)
+	}
+
+	if endpoints != nil && endpoints.ComputeServiceEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoints.ComputeServiceEndpoint))
 	}
 
 	computeSvc, err := compute.NewService(ctx, opts...)
@@ -103,10 +156,14 @@ func newComputeService(ctx context.Context, credentialsRef *infrav1.ObjectRefere
 	return computeSvc, nil
 }
 
-func newClusterManagerClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client) (*container.ClusterManagerClient, error) {
+func newClusterManagerClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, endpoints *infrav1.ServiceEndpoints) (*container.ClusterManagerClient, error) {
 	opts, err := defaultClientOptions(ctx, credentialsRef, crClient)
 	if err != nil {
 		return nil, fmt.Errorf("getting default gcp client options: %w", err)
+	}
+
+	if endpoints != nil && endpoints.ContainerServiceEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoints.ContainerServiceEndpoint))
 	}
 
 	managedClusterClient, err := container.NewClusterManagerClient(ctx, opts...)
@@ -117,10 +174,14 @@ func newClusterManagerClient(ctx context.Context, credentialsRef *infrav1.Object
 	return managedClusterClient, nil
 }
 
-func newIamCredentialsClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client) (*credentials.IamCredentialsClient, error) {
+func newIamCredentialsClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, endpoints *infrav1.ServiceEndpoints) (*credentials.IamCredentialsClient, error) {
 	opts, err := defaultClientOptions(ctx, credentialsRef, crClient)
 	if err != nil {
 		return nil, fmt.Errorf("getting default gcp client options: %w", err)
+	}
+
+	if endpoints != nil && endpoints.IAMServiceEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoints.IAMServiceEndpoint))
 	}
 
 	credentialsClient, err := credentials.NewIamCredentialsClient(ctx, opts...)
@@ -131,10 +192,14 @@ func newIamCredentialsClient(ctx context.Context, credentialsRef *infrav1.Object
 	return credentialsClient, nil
 }
 
-func newInstanceGroupManagerClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client) (*computerest.InstanceGroupManagersClient, error) {
+func newInstanceGroupManagerClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, endpoints *infrav1.ServiceEndpoints) (*computerest.InstanceGroupManagersClient, error) {
 	opts, err := defaultClientOptions(ctx, credentialsRef, crClient)
 	if err != nil {
 		return nil, fmt.Errorf("getting default gcp client options: %w", err)
+	}
+
+	if endpoints != nil && endpoints.ComputeServiceEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoints.ComputeServiceEndpoint))
 	}
 
 	instanceGroupManagersClient, err := computerest.NewInstanceGroupManagersRESTClient(ctx, opts...)
@@ -145,10 +210,16 @@ func newInstanceGroupManagerClient(ctx context.Context, credentialsRef *infrav1.
 	return instanceGroupManagersClient, nil
 }
 
-func newTagBindingsClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, location string) (*resourcemanager.TagBindingsClient, error) {
+func newTagBindingsClient(ctx context.Context, credentialsRef *infrav1.ObjectReference, crClient client.Client, location string, endpoints *infrav1.ServiceEndpoints) (*resourcemanager.TagBindingsClient, error) {
 	opts, err := defaultClientOptions(ctx, credentialsRef, crClient)
-	endpoint := fmt.Sprintf("%s-cloudresourcemanager.googleapis.com:443", location)
-	opts = append(opts, option.WithEndpoint(endpoint))
+
+	if endpoints != nil && endpoints.ResourceManagerServiceEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(endpoints.ResourceManagerServiceEndpoint))
+	} else {
+		endpoint := location + "-cloudresourcemanager.googleapis.com:443"
+		opts = append(opts, option.WithEndpoint(endpoint))
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("getting default gcp client options: %w", err)
 	}

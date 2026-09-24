@@ -52,9 +52,6 @@ manager_pull_policy.yaml-e
 # junit files
 junit.*.xml
 
-# asdf
-.tool-versions
-
 .DS_Store
 
 # Tilt files.
