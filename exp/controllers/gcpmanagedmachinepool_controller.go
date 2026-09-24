@@ -298,7 +298,8 @@ func (r *GCPManagedMachinePoolReconciler) reconcile(ctx context.Context, managed
 	log.Info("Reconciling GCPManagedMachinePool")
 
 	controllerutil.AddFinalizer(managedMachinePoolScope.GCPManagedMachinePool, infrav1exp.ManagedMachinePoolFinalizer)
-	managedMachinePoolScope.SetInfrastructureMachineKind()
+	// GKE node pools have no MachinePool Machines; an empty kind makes CAPI derive ready/available from status.replicas.
+	managedMachinePoolScope.GCPManagedMachinePool.Status.InfrastructureMachineKind = ""
 	if err := managedMachinePoolScope.PatchObject(); err != nil {
 		return ctrl.Result{}, err
 	}
