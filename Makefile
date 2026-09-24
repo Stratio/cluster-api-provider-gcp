@@ -648,3 +648,6 @@ verify-go-directive:
 	# use the core Cluster API script directly to verify the go directive matches the desired one.
 	# ref: https://github.com/kubernetes-sigs/cluster-api/blob/v1.10.7/hack/verify-go-directive.sh
 	curl --retry $(CURL_RETRIES) -fsL https://raw.githubusercontent.com/kubernetes-sigs/cluster-api/refs/tags/v1.11.0/hack/verify-go-directive.sh | bash -s -- -g $(GOLANG_DIRECTIVE_VERSION)
+
+change-version:
+	hack/custom/change-version.sh $(version)
