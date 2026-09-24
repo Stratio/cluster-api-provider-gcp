@@ -292,7 +292,8 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 		if cn.PrivateCluster != nil {
 			enablePublicEndpoint := !cn.PrivateCluster.EnablePrivateEndpoint
 			cluster.ControlPlaneEndpointsConfig.IpEndpointsConfig.EnablePublicEndpoint = &enablePublicEndpoint
-			if cn.PrivateCluster.EnablePrivateEndpoint {
+			// Keep the spec's authorized networks: replacing them forces an UpdateCluster right after creation.
+			if cn.PrivateCluster.EnablePrivateEndpoint && s.scope.GCPManagedControlPlane.Spec.MasterAuthorizedNetworksConfig == nil {
 				cluster.ControlPlaneEndpointsConfig.IpEndpointsConfig.AuthorizedNetworksConfig = &containerpb.MasterAuthorizedNetworksConfig{
 					Enabled: true,
 				}
