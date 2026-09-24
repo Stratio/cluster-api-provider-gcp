@@ -111,6 +111,8 @@ func (*GCPManagedControlPlane) ValidateCreate(_ context.Context, r *expinfrav1.G
 		}
 	}
 
+	allErrs = append(allErrs, validateIPAllocationFields(&r.Spec)...)
+
 	if len(allErrs) == 0 {
 		return allWarns, nil
 	}
@@ -149,6 +151,22 @@ func (*GCPManagedControlPlane) ValidateUpdate(_ context.Context, old, r *expinfr
 				r.Spec.EnableAutopilot, "field is immutable"),
 		)
 	}
+
+	if !cmp.Equal(r.Spec.ClusterIpv4Cidr, old.Spec.ClusterIpv4Cidr) {
+		allErrs = append(allErrs,
+			field.Invalid(field.NewPath("spec", "ClusterIpv4Cidr"),
+				r.Spec.ClusterIpv4Cidr, "field is immutable"),
+		)
+	}
+
+	if !cmp.Equal(r.Spec.NetworkPolicy, old.Spec.NetworkPolicy) {
+		allErrs = append(allErrs,
+			field.Invalid(field.NewPath("spec", "NetworkPolicy"),
+				r.Spec.NetworkPolicy, "field is immutable"),
+		)
+	}
+
+	allErrs = append(allErrs, validateIPAllocationFields(&r.Spec)...)
 
 	if old.Spec.EnableAutopilot && r.Spec.LoggingService != nil {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "LoggingService"),
@@ -190,6 +208,21 @@ func (*GCPManagedControlPlane) ValidateUpdate(_ context.Context, old, r *expinfr
 
 func (*GCPManagedControlPlane) ValidateDelete(_ context.Context, _ *expinfrav1.GCPManagedControlPlane) (admission.Warnings, error) {
 	return nil, nil
+}
+
+// validateIPAllocationFields rejects combining clusterIpv4Cidr/ipAllocationPolicy with the clusterNetwork IP settings, which set the same GKE field.
+func validateIPAllocationFields(spec *expinfrav1.GCPManagedControlPlaneSpec) field.ErrorList {
+	if spec.ClusterIpv4Cidr == nil && spec.IPAllocationPolicy == nil {
+		return nil
+	}
+	cn := spec.ClusterNetwork
+	if cn == nil || (!cn.UseIPAliases && cn.Pod == nil && cn.Service == nil) {
+		return nil
+	}
+	return field.ErrorList{
+		field.Forbidden(field.NewPath("spec", "IPAllocationPolicy"),
+			"clusterIpv4Cidr and ipAllocationPolicy cannot be combined with clusterNetwork.useIPAliases, clusterNetwork.pod or clusterNetwork.service"),
+	}
 }
 
 func generateGKEName(resourceName, namespace string, maxLength int) (string, error) {

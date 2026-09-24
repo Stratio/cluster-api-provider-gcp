@@ -77,6 +77,26 @@ type GCPManagedControlPlaneClassSpec struct {
 	// Value is ignored when enableAutopilot = true.
 	// +optional
 	MonitoringService *MonitoringService `json:"monitoringService,omitempty"`
+
+	// ClusterIpv4Cidr is the pod IP range of the GKE cluster in CIDR notation; chosen by GKE if unset.
+	// +optional
+	ClusterIpv4Cidr *string `json:"clusterIpv4Cidr,omitempty"`
+
+	// IPAllocationPolicy configures the GKE cluster IP allocation; GKE defaults are used if unset.
+	// +optional
+	IPAllocationPolicy *IPAllocationPolicy `json:"ipAllocationPolicy,omitempty"`
+
+	// NetworkPolicy enables the GKE NetworkPolicy feature; disabled if unset.
+	// +optional
+	NetworkPolicy *NetworkPolicy `json:"networkPolicy,omitempty"`
+
+	// LoggingConfig selects which components send logs to Cloud Logging.
+	// +optional
+	LoggingConfig *LoggingConfig `json:"loggingConfig,omitempty"`
+
+	// MonitoringConfig configures the managed monitoring of the GKE cluster.
+	// +optional
+	MonitoringConfig *MonitoringConfig `json:"monitoringConfig,omitempty"`
 }
 
 // GCPManagedMachinePoolClassSpec defines the GCPManagedMachinePool properties that may be shared across several GCP managed machinepools.
@@ -156,4 +176,7 @@ type GCPManagedMachinePoolClassSpec struct {
 	// any time and are recommended over Preemptible VMs for new workloads. This field is immutable.
 	// +optional
 	Spot *bool `json:"spot,omitempty"`
+	// BootDiskKmsKey is the Cloud KMS key used to encrypt the boot disk of the nodes.
+	// +optional
+	BootDiskKmsKey string `json:"bootDiskKmsKey,omitempty"`
 }

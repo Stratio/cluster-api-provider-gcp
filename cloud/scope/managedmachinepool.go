@@ -37,6 +37,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ManagedMachinePoolScopeParams defines the input parameters used to create a new Scope.
@@ -216,6 +217,9 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 	if nodePool.Spec.LinuxNodeConfig != nil {
 		sdkNodePool.Config.LinuxNodeConfig = infrav1exp.ConvertToSdkLinuxNodeConfig(nodePool.Spec.LinuxNodeConfig)
 	}
+	if nodePool.Spec.BootDiskKmsKey != "" {
+		sdkNodePool.Config.BootDiskKmsKey = nodePool.Spec.BootDiskKmsKey
+	}
 	if nodePool.Spec.Management != nil {
 		sdkNodePool.Management = &containerpb.NodeManagement{
 			AutoRepair:  nodePool.Spec.Management.AutoRepair,
@@ -290,9 +294,38 @@ func ConvertToSdkNodePools(nodePools []infrav1exp.GCPManagedMachinePool, machine
 	return res
 }
 
-// SetReplicas sets the replicas count in status.
+// SetReplicas sets the replicas count in status and writes it back to the owner MachinePool.
 func (s *ManagedMachinePoolScope) SetReplicas(replicas int32) {
 	s.GCPManagedMachinePool.Status.Replicas = replicas
+	if err := s.syncMachinePoolReplicas(context.TODO(), replicas); err != nil {
+		log.Log.Error(err, "Failed to sync MachinePool replicas", "machinePool", s.GCPManagedMachinePool.Name)
+	}
+}
+
+// syncMachinePoolReplicas aligns MachinePool.spec.replicas with the node count observed in GKE, so that scaling done by GKE does not leave the MachinePool scaling forever.
+func (s *ManagedMachinePoolScope) syncMachinePoolReplicas(ctx context.Context, replicas int32) error {
+	machinePool := s.MachinePool
+	if machinePool == nil || s.client == nil {
+		return nil
+	}
+
+	if ptr.Deref(machinePool.Spec.Replicas, -1) != replicas {
+		original := machinePool.DeepCopy()
+		machinePool.Spec.Replicas = ptr.To(replicas)
+		if err := s.client.Patch(ctx, machinePool, client.MergeFrom(original)); err != nil {
+			return errors.Wrap(err, "patching MachinePool spec.replicas")
+		}
+	}
+
+	if replicas == 0 && machinePool.Status.Replicas == nil {
+		original := machinePool.DeepCopy()
+		machinePool.Status.Replicas = ptr.To(int32(0))
+		if err := s.client.Status().Patch(ctx, machinePool, client.MergeFrom(original)); err != nil {
+			return errors.Wrap(err, "patching MachinePool status.replicas")
+		}
+	}
+
+	return nil
 }
 
 // NodePoolName returns the node pool name.

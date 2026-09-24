@@ -110,6 +110,14 @@ var _ = Describe("GCPManagedMachinePool Scope", func() {
 			}))
 		})
 
+		It("should set the boot disk KMS key", func() {
+			TestGCPMMP.Spec.BootDiskKmsKey = "projects/p/locations/l/keyRings/r/cryptoKeys/k"
+
+			sdkNodePool := ConvertToSdkNodePool(*TestGCPMMP, *TestMP, false, TestClusterName)
+
+			Expect(sdkNodePool.GetConfig().GetBootDiskKmsKey()).To(Equal(TestGCPMMP.Spec.BootDiskKmsKey))
+		})
+
 		It("should convert to SDK node pool using GCPManagedMachinePool", func() {
 			machineType := "n1-standard-1"
 			diskSizeGb := int32(128)

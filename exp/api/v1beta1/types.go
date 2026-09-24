@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
+	"k8s.io/utils/ptr"
 )
 
 // TaintEffect is the effect for a Kubernetes taint.
@@ -143,4 +144,19 @@ func ConvertToSdkLinuxNodeConfig(linuxNodeConfig *LinuxNodeConfig) *containerpb.
 		}
 	}
 	return &sdkLinuxNodeConfig
+}
+
+// ConvertToSdkIPAllocationPolicy converts the CAPG IPAllocationPolicy to a containerpb IPAllocationPolicy.
+func ConvertToSdkIPAllocationPolicy(policy *IPAllocationPolicy) *containerpb.IPAllocationPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	return &containerpb.IPAllocationPolicy{
+		UseIpAliases:               ptr.Deref(policy.UseIPAliases, false),
+		ClusterSecondaryRangeName:  ptr.Deref(policy.ClusterSecondaryRangeName, ""),
+		ServicesSecondaryRangeName: ptr.Deref(policy.ServicesSecondaryRangeName, ""),
+		ClusterIpv4CidrBlock:       ptr.Deref(policy.ClusterIpv4CidrBlock, ""),
+		ServicesIpv4CidrBlock:      ptr.Deref(policy.ServicesIpv4CidrBlock, ""),
+	}
 }

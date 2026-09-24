@@ -61,6 +61,10 @@ spec:
                         - disabled
                         - project_singleton_policy_enforce
                         type: string
+                      clusterIpv4Cidr:
+                        description: ClusterIpv4Cidr is the pod IP range of the GKE
+                          cluster in CIDR notation; chosen by GKE if unset.
+                        type: string
                       clusterNetwork:
                         description: ClusterNetwork define the cluster network.
                         properties:
@@ -160,11 +164,51 @@ spec:
                         description: EnableIdentityService indicates whether to enable
                           Identity Service component for this GKE cluster.
                         type: boolean
+                      ipAllocationPolicy:
+                        description: IPAllocationPolicy configures the GKE cluster
+                          IP allocation; GKE defaults are used if unset.
+                        properties:
+                          clusterIpv4CidrBlock:
+                            description: ClusterIpv4CidrBlock is the IP range for
+                              pod IPs; chosen with the default size if unset.
+                            type: string
+                          clusterSecondaryRangeName:
+                            description: ClusterSecondaryRangeName is the name of
+                              an existing subnetwork secondary range used for pod
+                              IPs.
+                            type: string
+                          servicesIpv4CidrBlock:
+                            description: ServicesIpv4CidrBlock is the IP range for
+                              service IPs; chosen with the default size if unset.
+                            type: string
+                          servicesSecondaryRangeName:
+                            description: ServicesSecondaryRangeName is the name of
+                              an existing subnetwork secondary range used for service
+                              IPs.
+                            type: string
+                          useIPAliases:
+                            description: UseIPAliases represents whether alias IPs
+                              will be used for pod IPs in the cluster. Defaults to
+                              false.
+                            type: boolean
+                        type: object
                       location:
                         description: |-
                           Location represents the location (region or zone) in which the GKE cluster
                           will be created.
                         type: string
+                      loggingConfig:
+                        description: LoggingConfig selects which components send logs
+                          to Cloud Logging.
+                        properties:
+                          systemComponents:
+                            description: SystemComponents enables logging of system
+                              components.
+                            type: boolean
+                          workloads:
+                            description: Workloads enables logging of workloads.
+                            type: boolean
+                        type: object
                       loggingService:
                         description: |-
                           LoggingService represents configuration of logging service feature of the GKE cluster.
@@ -207,12 +251,31 @@ spec:
                               Engine Public IP addresses.
                             type: boolean
                         type: object
+                      monitoringConfig:
+                        description: MonitoringConfig configures the managed monitoring
+                          of the GKE cluster.
+                        properties:
+                          enableManagedPrometheus:
+                            description: EnableManagedPrometheus enables Google Cloud
+                              Managed Service for Prometheus in the cluster.
+                            type: boolean
+                        type: object
                       monitoringService:
                         description: |-
                           MonitoringService represents configuration of monitoring service feature of the GKE cluster.
                           Possible values: none, monitoring.googleapis.com/kubernetes (default).
                           Value is ignored when enableAutopilot = true.
                         type: string
+                      networkPolicy:
+                        description: NetworkPolicy enables the GKE NetworkPolicy feature;
+                          disabled if unset.
+                        properties:
+                          provider:
+                            description: Provider is the network policy provider.
+                            enum:
+                            - calico
+                            type: string
+                        type: object
                       project:
                         description: Project is the name of the project to deploy
                           the cluster to.

@@ -701,3 +701,104 @@ func TestClusterNetworkNilPointerGuards(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckDiffAndPrepareUpdateWorkloadIdentity(t *testing.T) {
+	existingCluster := func(pool string) *containerpb.Cluster {
+		c := &containerpb.Cluster{
+			ReleaseChannel: &containerpb.ReleaseChannel{Channel: containerpb.ReleaseChannel_STABLE},
+			ControlPlaneEndpointsConfig: &containerpb.ControlPlaneEndpointsConfig{
+				IpEndpointsConfig: &containerpb.ControlPlaneEndpointsConfig_IPEndpointsConfig{
+					AuthorizedNetworksConfig: &containerpb.MasterAuthorizedNetworksConfig{
+						Enabled:                     false,
+						CidrBlocks:                  []*containerpb.MasterAuthorizedNetworksConfig_CidrBlock{},
+						GcpPublicCidrsAccessEnabled: ptr.To(false),
+					},
+				},
+			},
+		}
+		if pool != "" {
+			c.WorkloadIdentityConfig = &containerpb.WorkloadIdentityConfig{WorkloadPool: pool}
+		}
+		return c
+	}
+	controlPlane := func(pool string) *infrav1exp.GCPManagedControlPlane {
+		cp := &infrav1exp.GCPManagedControlPlane{
+			Spec: infrav1exp.GCPManagedControlPlaneSpec{
+				GCPManagedControlPlaneClassSpec: infrav1exp.GCPManagedControlPlaneClassSpec{
+					Project:        "test-project",
+					Location:       "us-central1",
+					ReleaseChannel: ptr.To(infrav1exp.Stable),
+				},
+				ClusterName: "test-cluster",
+			},
+		}
+		if pool != "" {
+			cp.Spec.ClusterSecurity = &infrav1exp.ClusterSecurity{
+				WorkloadIdentityConfig: &infrav1exp.WorkloadIdentityConfig{WorkloadPool: pool},
+			}
+		}
+		return cp
+	}
+
+	tests := []struct {
+		name           string
+		desiredPool    string
+		existingPool   string
+		wantNeedUpdate bool
+	}{
+		{name: "no update when disabled on both sides", wantNeedUpdate: false},
+		{name: "no update when pools match", desiredPool: "p.svc.id.goog", existingPool: "p.svc.id.goog", wantNeedUpdate: false},
+		{name: "update when enabling on an existing cluster", desiredPool: "p.svc.id.goog", wantNeedUpdate: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestService(controlPlane(tt.desiredPool))
+			log := ctrl.Log.WithName("test")
+			needUpdate, updateReq := svc.checkDiffAndPrepareUpdate(existingCluster(tt.existingPool), &log)
+			if needUpdate != tt.wantNeedUpdate {
+				t.Fatalf("checkDiffAndPrepareUpdate() needUpdate = %v, want %v", needUpdate, tt.wantNeedUpdate)
+			}
+			if tt.wantNeedUpdate {
+				if got := updateReq.GetUpdate().GetDesiredWorkloadIdentityConfig().GetWorkloadPool(); got != tt.desiredPool {
+					t.Errorf("DesiredWorkloadIdentityConfig.WorkloadPool = %q, want %q", got, tt.desiredPool)
+				}
+			}
+		})
+	}
+}
+
+func TestConvertToSdkNetworkPolicy(t *testing.T) {
+	got := convertToSdkNetworkPolicy(&infrav1exp.NetworkPolicy{Provider: "calico"})
+	if !got.GetEnabled() || got.GetProvider() != containerpb.NetworkPolicy_CALICO {
+		t.Errorf("calico: got %v", got)
+	}
+	got = convertToSdkNetworkPolicy(&infrav1exp.NetworkPolicy{})
+	if !got.GetEnabled() || got.GetProvider() != containerpb.NetworkPolicy_PROVIDER_UNSPECIFIED {
+		t.Errorf("empty provider: got %v", got)
+	}
+}
+
+func TestConvertToSdkLoggingConfig(t *testing.T) {
+	got := convertToSdkLoggingConfig(&infrav1exp.LoggingConfig{SystemComponents: true, Workloads: true})
+	want := []containerpb.LoggingComponentConfig_Component{
+		containerpb.LoggingComponentConfig_SYSTEM_COMPONENTS,
+		containerpb.LoggingComponentConfig_WORKLOADS,
+	}
+	if gotComponents := got.GetComponentConfig().GetEnableComponents(); len(gotComponents) != 2 || gotComponents[0] != want[0] || gotComponents[1] != want[1] {
+		t.Errorf("both components: got %v, want %v", gotComponents, want)
+	}
+	got = convertToSdkLoggingConfig(&infrav1exp.LoggingConfig{})
+	if got.GetComponentConfig() == nil || len(got.GetComponentConfig().GetEnableComponents()) != 0 {
+		t.Errorf("no components: got %v, want an empty component list", got)
+	}
+}
+
+func TestConvertToSdkMonitoringConfig(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		got := convertToSdkMonitoringConfig(&infrav1exp.MonitoringConfig{EnableManagedPrometheus: enabled})
+		if got.GetManagedPrometheusConfig().GetEnabled() != enabled {
+			t.Errorf("EnableManagedPrometheus=%v: got %v", enabled, got)
+		}
+	}
+}

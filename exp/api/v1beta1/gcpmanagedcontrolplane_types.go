@@ -264,6 +264,50 @@ type MasterAuthorizedNetworksConfigCidrBlock struct {
 	CidrBlock string `json:"cidr_block,omitempty"`
 }
 
+// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
+type IPAllocationPolicy struct {
+	// UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster. Defaults to false.
+	// +optional
+	UseIPAliases *bool `json:"useIPAliases,omitempty"`
+	// ClusterSecondaryRangeName is the name of an existing subnetwork secondary range used for pod IPs.
+	// +optional
+	ClusterSecondaryRangeName *string `json:"clusterSecondaryRangeName,omitempty"`
+	// ServicesSecondaryRangeName is the name of an existing subnetwork secondary range used for service IPs.
+	// +optional
+	ServicesSecondaryRangeName *string `json:"servicesSecondaryRangeName,omitempty"`
+	// ClusterIpv4CidrBlock is the IP range for pod IPs; chosen with the default size if unset.
+	// +optional
+	ClusterIpv4CidrBlock *string `json:"clusterIpv4CidrBlock,omitempty"`
+	// ServicesIpv4CidrBlock is the IP range for service IPs; chosen with the default size if unset.
+	// +optional
+	ServicesIpv4CidrBlock *string `json:"servicesIpv4CidrBlock,omitempty"`
+}
+
+// NetworkPolicy represents configuration options for the NetworkPolicy feature of the GKE cluster.
+type NetworkPolicy struct {
+	// Provider is the network policy provider.
+	// +kubebuilder:validation:Enum=calico
+	// +optional
+	Provider string `json:"provider,omitempty"`
+}
+
+// LoggingConfig selects the GKE components that send logs to Cloud Logging; none selected disables them.
+type LoggingConfig struct {
+	// SystemComponents enables logging of system components.
+	// +optional
+	SystemComponents bool `json:"systemComponents,omitempty"`
+	// Workloads enables logging of workloads.
+	// +optional
+	Workloads bool `json:"workloads,omitempty"`
+}
+
+// MonitoringConfig configures the managed monitoring of the GKE cluster.
+type MonitoringConfig struct {
+	// EnableManagedPrometheus enables Google Cloud Managed Service for Prometheus in the cluster.
+	// +optional
+	EnableManagedPrometheus bool `json:"enableManagedPrometheus,omitempty"`
+}
+
 // LoggingService is GKE logging service configuration.
 type LoggingService string
 

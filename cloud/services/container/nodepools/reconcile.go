@@ -304,6 +304,10 @@ func (s *Service) createNodePool(ctx context.Context, log *logr.Logger) error {
 func (s *Service) updateNodePoolConfig(ctx context.Context, updateNodePoolRequest *containerpb.UpdateNodePoolRequest) error {
 	_, err := s.scope.ManagedMachinePoolClient().UpdateNodePool(ctx, updateNodePoolRequest)
 	if err != nil {
+		if strings.Contains(err.Error(), "CLUSTER_ALREADY_HAS_OPERATION") {
+			log.FromContext(ctx).Info("Cluster is running another operation, node pool config update postponed")
+			return nil
+		}
 		return err
 	}
 
@@ -428,12 +432,6 @@ func (s *Service) checkDiffAndPrepareUpdateAutoscaling(existingNodePool *contain
 
 func (s *Service) checkDiffAndPrepareUpdateSize(existingNodePool *containerpb.NodePool) (bool, *containerpb.SetNodePoolSizeRequest) {
 	needUpdate := false
-	desiredAutoscaling := infrav1exp.ConvertToSdkAutoscaling(s.scope.GCPManagedMachinePool.Spec.Scaling)
-
-	if desiredAutoscaling.GetEnabled() {
-		// Do not update node pool size if autoscaling is enabled.
-		return false, nil
-	}
 
 	setNodePoolSizeRequest := containerpb.SetNodePoolSizeRequest{
 		Name: s.scope.NodePoolFullName(),

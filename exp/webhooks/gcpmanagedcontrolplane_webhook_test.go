@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	expinfrav1 "sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
 )
 
@@ -184,6 +185,46 @@ func TestGCPManagedControlPlaneValidatingWebhookCreate(t *testing.T) {
 				Version:             &vV1_32_5,
 			},
 		},
+		{
+			name:        "ipAllocationPolicy combined with clusterNetwork.useIPAliases should cause an error",
+			expectError: true,
+			expectWarn:  false,
+			spec: expinfrav1.GCPManagedControlPlaneSpec{
+				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
+					ClusterNetwork:     &expinfrav1.ClusterNetwork{UseIPAliases: true},
+					IPAllocationPolicy: &expinfrav1.IPAllocationPolicy{ClusterIpv4CidrBlock: ptr.To("10.96.0.0/14")},
+				},
+			},
+		},
+		{
+			name:        "clusterIpv4Cidr combined with clusterNetwork.pod should cause an error",
+			expectError: true,
+			expectWarn:  false,
+			spec: expinfrav1.GCPManagedControlPlaneSpec{
+				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
+					ClusterNetwork:  &expinfrav1.ClusterNetwork{Pod: &expinfrav1.ClusterNetworkPod{CidrBlock: "10.96.0.0/14"}},
+					ClusterIpv4Cidr: ptr.To("10.96.0.0/14"),
+				},
+			},
+		},
+		{
+			name:        "ipAllocationPolicy with a private cluster only",
+			expectError: false,
+			expectWarn:  false,
+			spec: expinfrav1.GCPManagedControlPlaneSpec{
+				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
+					ClusterNetwork: &expinfrav1.ClusterNetwork{
+						PrivateCluster: &expinfrav1.PrivateCluster{EnablePrivateNodes: true},
+					},
+					ClusterIpv4Cidr: ptr.To("10.96.0.0/14"),
+					IPAllocationPolicy: &expinfrav1.IPAllocationPolicy{
+						ClusterSecondaryRangeName:  ptr.To("pods"),
+						ServicesSecondaryRangeName: ptr.To("services"),
+					},
+					NetworkPolicy: &expinfrav1.NetworkPolicy{Provider: "calico"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -249,6 +290,26 @@ func TestGCPManagedControlPlaneValidatingWebhookUpdate(t *testing.T) {
 				ClusterName: "default_cluster1",
 				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
 					EnableAutopilot: true,
+				},
+			},
+		},
+		{
+			name:        "request to change clusterIpv4Cidr should cause an error",
+			expectError: true,
+			spec: expinfrav1.GCPManagedControlPlaneSpec{
+				ClusterName: "default_cluster1",
+				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
+					ClusterIpv4Cidr: ptr.To("10.96.0.0/14"),
+				},
+			},
+		},
+		{
+			name:        "request to change networkPolicy should cause an error",
+			expectError: true,
+			spec: expinfrav1.GCPManagedControlPlaneSpec{
+				ClusterName: "default_cluster1",
+				GCPManagedControlPlaneClassSpec: expinfrav1.GCPManagedControlPlaneClassSpec{
+					NetworkPolicy: &expinfrav1.NetworkPolicy{Provider: "calico"},
 				},
 			},
 		},

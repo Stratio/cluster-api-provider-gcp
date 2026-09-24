@@ -344,6 +344,22 @@ func (s *Service) createCluster(ctx context.Context, log *logr.Logger) error {
 		}
 	}
 
+	if cidr := s.scope.GCPManagedControlPlane.Spec.ClusterIpv4Cidr; cidr != nil {
+		cluster.ClusterIpv4Cidr = *cidr
+	}
+	if policy := s.scope.GCPManagedControlPlane.Spec.IPAllocationPolicy; policy != nil {
+		cluster.IpAllocationPolicy = infrav1exp.ConvertToSdkIPAllocationPolicy(policy)
+	}
+	if networkPolicy := s.scope.GCPManagedControlPlane.Spec.NetworkPolicy; networkPolicy != nil {
+		cluster.NetworkPolicy = convertToSdkNetworkPolicy(networkPolicy)
+	}
+	if loggingConfig := s.scope.GCPManagedControlPlane.Spec.LoggingConfig; loggingConfig != nil {
+		cluster.LoggingConfig = convertToSdkLoggingConfig(loggingConfig)
+	}
+	if monitoringConfig := s.scope.GCPManagedControlPlane.Spec.MonitoringConfig; monitoringConfig != nil {
+		cluster.MonitoringConfig = convertToSdkMonitoringConfig(monitoringConfig)
+	}
+
 	createClusterRequest := &containerpb.CreateClusterRequest{
 		Cluster: cluster,
 		Parent:  s.scope.ClusterLocation(),
@@ -453,6 +469,45 @@ func convertToSdkMasterAuthorizedNetworksConfig(config *infrav1exp.MasterAuthori
 	}
 }
 
+// convertToSdkNetworkPolicy converts the NetworkPolicy config to the SDK version.
+func convertToSdkNetworkPolicy(networkPolicy *infrav1exp.NetworkPolicy) *containerpb.NetworkPolicy {
+	sdkNetworkPolicy := &containerpb.NetworkPolicy{
+		Enabled: true,
+	}
+	switch networkPolicy.Provider {
+	case "calico":
+		sdkNetworkPolicy.Provider = containerpb.NetworkPolicy_CALICO
+	default:
+		sdkNetworkPolicy.Provider = containerpb.NetworkPolicy_PROVIDER_UNSPECIFIED
+	}
+	return sdkNetworkPolicy
+}
+
+// convertToSdkLoggingConfig converts the LoggingConfig to the SDK version; no component selected disables logging.
+func convertToSdkLoggingConfig(loggingConfig *infrav1exp.LoggingConfig) *containerpb.LoggingConfig {
+	var components []containerpb.LoggingComponentConfig_Component
+	if loggingConfig.SystemComponents {
+		components = append(components, containerpb.LoggingComponentConfig_SYSTEM_COMPONENTS)
+	}
+	if loggingConfig.Workloads {
+		components = append(components, containerpb.LoggingComponentConfig_WORKLOADS)
+	}
+	return &containerpb.LoggingConfig{
+		ComponentConfig: &containerpb.LoggingComponentConfig{
+			EnableComponents: components,
+		},
+	}
+}
+
+// convertToSdkMonitoringConfig converts the MonitoringConfig to the SDK version.
+func convertToSdkMonitoringConfig(monitoringConfig *infrav1exp.MonitoringConfig) *containerpb.MonitoringConfig {
+	return &containerpb.MonitoringConfig{
+		ManagedPrometheusConfig: &containerpb.ManagedPrometheusConfig{
+			Enabled: monitoringConfig.EnableManagedPrometheus,
+		},
+	}
+}
+
 // convertToSdkBinaryAuthorizationEvaluationMode converts the BinaryAuthorization string to the SDK int32 value.
 func convertToSdkBinaryAuthorizationEvaluationMode(mode *infrav1exp.BinaryAuthorization) containerpb.BinaryAuthorization_EvaluationMode {
 	if mode == nil {
@@ -537,6 +592,17 @@ func (s *Service) checkDiffAndPrepareUpdate(existingCluster *containerpb.Cluster
 		log.V(4).Info("Master authorized networks config update check", "desired", desiredMasterAuthorizedNetworksConfig)
 	}
 
+	// WorkloadIdentityConfig
+	desiredWorkloadIdentityConfig := &containerpb.WorkloadIdentityConfig{}
+	if cs := s.scope.GCPManagedControlPlane.Spec.ClusterSecurity; cs != nil && cs.WorkloadIdentityConfig != nil {
+		desiredWorkloadIdentityConfig.WorkloadPool = cs.WorkloadIdentityConfig.WorkloadPool
+	}
+	if !compareWorkloadIdentityConfig(desiredWorkloadIdentityConfig, existingCluster.GetWorkloadIdentityConfig()) {
+		needUpdate = true
+		clusterUpdate.DesiredWorkloadIdentityConfig = desiredWorkloadIdentityConfig
+		log.V(2).Info("WorkloadIdentityConfig update required", "current", existingCluster.GetWorkloadIdentityConfig(), "desired", desiredWorkloadIdentityConfig)
+	}
+
 	updateClusterRequest := containerpb.UpdateClusterRequest{
 		Name:   s.scope.ClusterFullName(),
 		Update: &clusterUpdate,
@@ -571,4 +637,15 @@ func compareMasterAuthorizedNetworksConfig(a, b *containerpb.MasterAuthorizedNet
 		return false
 	}
 	return true
+}
+
+// compareWorkloadIdentityConfig compares two WorkloadIdentityConfig, treating nil as an empty config.
+func compareWorkloadIdentityConfig(a, b *containerpb.WorkloadIdentityConfig) bool {
+	if a == nil {
+		a = &containerpb.WorkloadIdentityConfig{}
+	}
+	if b == nil {
+		b = &containerpb.WorkloadIdentityConfig{}
+	}
+	return a.GetWorkloadPool() == b.GetWorkloadPool()
 }
