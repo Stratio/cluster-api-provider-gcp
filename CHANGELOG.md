@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1-0.4.2 (upcoming)
+## 1.6.1-0.4.2 (2026-09-28)
 
 * [PLT-4830] Bump `google.golang.org/grpc` (1.83.1 → 1.83.2) to close a vulnerability; the rebuild also picks up `libssl3`/`libcrypto3` 3.5.8 from the `alpine:latest` runtime base
 
