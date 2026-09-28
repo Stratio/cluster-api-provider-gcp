@@ -1,8 +1,16 @@
 # Changelog
 
+<<<<<<< HEAD
 ## 1.6.1-0.5.0 (upcoming)
 
 ## 1.6.1-0.4.0 (2025-10-07)
+=======
+## 1.6.1-0.4.2 (upcoming)
+
+* [PLT-4830] Bump `google.golang.org/grpc` (1.83.1 → 1.83.2) to close a vulnerability; the rebuild also picks up `libssl3`/`libcrypto3` 3.5.8 from the `alpine:latest` runtime base
+
+## 1.6.1-0.4.1 (2026-09-10)
+>>>>>>> 16672edd ([PLT-4867] Bump google.golang.org/grpc to v1.83.2 to close CVE-2026-84445 (#51))
 
 * [PLT-4748] Bump `golang.org/x/net` (0.43.0 → 0.58.0), `golang.org/x/crypto` (0.42.0 → 0.56.0), `google.golang.org/grpc` (1.67.3 → 1.83.1), `go.opentelemetry.io/otel*` (1.39.0 → 1.44.0) and Go toolchain (1.24.6 → 1.26.0) to close vulnerabilities
 * Fix `Jenkinsfile`'s `@Library('libpipelines@master')` pointing at a branch that no longer exists in `Stratio/jenkins-bootstrap` (renamed to `main`), breaking CI on every PR regardless of code changes

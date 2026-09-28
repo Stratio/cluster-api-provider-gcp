@@ -28,7 +28,7 @@ require (
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
 	google.golang.org/api v0.264.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	k8s.io/api v0.29.3
 	k8s.io/apimachinery v0.29.3
 	k8s.io/client-go v0.29.3
