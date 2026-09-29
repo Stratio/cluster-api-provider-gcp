@@ -3,6 +3,8 @@
 ## 1.13.1-0.5.0 (upcoming)
 
 * [PLT-4891] Rebase the fork onto upstream `v1.13.1` (reads the CAPI core `Cluster`/`MachinePool` as `v1beta2`, requires CAPI core >= v1.11). Stratio behaviours re-applied: GKE NetworkPolicy (Calico), boot disk CMEK, `clusterIpv4Cidr` and `ipAllocationPolicy` (incl. secondary range names), Managed Prometheus and per-component logging, Workload Identity on update, node pool resize with autoscaling enabled, `CLUSTER_ALREADY_HAS_OPERATION` handling, replica write-back to the `MachinePool`. Private cluster, `extended` release channel, Workload Identity on create and the taints/authorized-networks diff fixes now come from upstream
+* [PLT-4891] Keep the authorized networks of `masterAuthorizedNetworksConfig` when creating a private-endpoint GKE cluster (upstream replaced them with an empty config and the follow-up `UpdateCluster` delayed the kubeconfig past cloud-provisioner's wait); skip the `LinuxNodeConfig` diff when it is not set (upstream `eedd22f5`), which recreated every node pool right after creation
+* [PLT-4891] Clear `status.infrastructureMachineKind` on `GCPManagedMachinePool`: GKE node pools have no MachinePool Machines, and with the kind set CAPI >= v1.11 reported 0 ready/available replicas, blocking any caller that waits for the `MachinePool`
 * [PLT-4891] Keep the CVE fixes already shipped in `1.6.1-0.4.x` on the new base: `google.golang.org/grpc` v1.83.2, `golang.org/x/net` v0.58.0, `golang.org/x/crypto` v0.56.0, `go.opentelemetry.io/otel*` v1.44.0, Go 1.26 (builder `golang:1.26.8`)
 
 ## 1.6.1-0.4.0 (2025-10-07)
