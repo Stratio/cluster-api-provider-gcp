@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.13.1-0.5.0 (upcoming)
+## 1.13.1-0.1.0 (upcoming)
 
 * [PLT-4891] Rebase the fork onto upstream `v1.13.1` (reads the CAPI core `Cluster`/`MachinePool` as `v1beta2`, requires CAPI core >= v1.11). Stratio behaviours re-applied: GKE NetworkPolicy (Calico), boot disk CMEK, `clusterIpv4Cidr` and `ipAllocationPolicy` (incl. secondary range names), Managed Prometheus and per-component logging, Workload Identity on update, node pool resize with autoscaling enabled, `CLUSTER_ALREADY_HAS_OPERATION` handling, replica write-back to the `MachinePool`. Private cluster, `extended` release channel, Workload Identity on create and the taints/authorized-networks diff fixes now come from upstream
 * [PLT-4891] Keep the authorized networks of `masterAuthorizedNetworksConfig` when creating a private-endpoint GKE cluster (upstream replaced them with an empty config and the follow-up `UpdateCluster` delayed the kubeconfig past cloud-provisioner's wait); skip the `LinuxNodeConfig` diff when it is not set (upstream `eedd22f5`), which recreated every node pool right after creation
