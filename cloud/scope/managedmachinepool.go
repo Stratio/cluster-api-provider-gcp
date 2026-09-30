@@ -26,19 +26,18 @@ import (
 	"sigs.k8s.io/cluster-api-provider-gcp/cloud"
 	"sigs.k8s.io/cluster-api-provider-gcp/util/location"
 
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	container "cloud.google.com/go/container/apiv1"
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/pkg/errors"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	clusterv1exp "sigs.k8s.io/cluster-api/exp/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/patch"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	// import apierrors
 )
 
 // ManagedMachinePoolScopeParams defines the input parameters used to create a new Scope.
@@ -47,7 +46,7 @@ type ManagedMachinePoolScopeParams struct {
 	InstanceGroupManagersClient *compute.InstanceGroupManagersClient
 	Client                      client.Client
 	Cluster                     *clusterv1.Cluster
-	MachinePool                 *clusterv1exp.MachinePool
+	MachinePool                 *clusterv1.MachinePool
 	GCPManagedCluster           *infrav1exp.GCPManagedCluster
 	GCPManagedControlPlane      *infrav1exp.GCPManagedControlPlane
 	GCPManagedMachinePool       *infrav1exp.GCPManagedMachinePool
@@ -73,21 +72,21 @@ func NewManagedMachinePoolScope(ctx context.Context, params ManagedMachinePoolSc
 	}
 
 	if params.ManagedClusterClient == nil {
-		managedClusterClient, err := newClusterManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client)
+		managedClusterClient, err := newClusterManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.ServiceEndpoints)
 		if err != nil {
 			return nil, errors.Errorf("failed to create gcp managed cluster client: %v", err)
 		}
 		params.ManagedClusterClient = managedClusterClient
 	}
 	if params.InstanceGroupManagersClient == nil {
-		instanceGroupManagersClient, err := newInstanceGroupManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client)
+		instanceGroupManagersClient, err := newInstanceGroupManagerClient(ctx, params.GCPManagedCluster.Spec.CredentialsRef, params.Client, params.GCPManagedCluster.Spec.ServiceEndpoints)
 		if err != nil {
 			return nil, errors.Errorf("failed to create gcp instance group manager client: %v", err)
 		}
 		params.InstanceGroupManagersClient = instanceGroupManagersClient
 	}
 
-	helper, err := patch.NewHelper(params.GCPManagedMachinePool, params.Client)
+	helper, err := v1beta1patch.NewHelper(params.GCPManagedMachinePool, params.Client)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init patch helper")
 	}
@@ -107,10 +106,10 @@ func NewManagedMachinePoolScope(ctx context.Context, params ManagedMachinePoolSc
 // ManagedMachinePoolScope defines the basic context for an actuator to operate upon.
 type ManagedMachinePoolScope struct {
 	client      client.Client
-	patchHelper *patch.Helper
+	patchHelper *v1beta1patch.Helper
 
 	Cluster                *clusterv1.Cluster
-	MachinePool            *clusterv1exp.MachinePool
+	MachinePool            *clusterv1.MachinePool
 	GCPManagedCluster      *infrav1exp.GCPManagedCluster
 	GCPManagedControlPlane *infrav1exp.GCPManagedControlPlane
 	GCPManagedMachinePool  *infrav1exp.GCPManagedMachinePool
@@ -123,7 +122,7 @@ func (s *ManagedMachinePoolScope) PatchObject() error {
 	return s.patchHelper.Patch(
 		context.TODO(),
 		s.GCPManagedMachinePool,
-		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+		v1beta1patch.WithOwnedConditions{Conditions: []clusterv1beta1.ConditionType{
 			infrav1exp.GKEMachinePoolReadyCondition,
 			infrav1exp.GKEMachinePoolCreatingCondition,
 			infrav1exp.GKEMachinePoolUpdatingCondition,
@@ -139,7 +138,7 @@ func (s *ManagedMachinePoolScope) Close() error {
 }
 
 // ConditionSetter return a condition setter (which is GCPManagedMachinePool itself).
-func (s *ManagedMachinePoolScope) ConditionSetter() conditions.Setter {
+func (s *ManagedMachinePoolScope) ConditionSetter() v1beta1conditions.Setter {
 	return s.GCPManagedMachinePool
 }
 
@@ -154,7 +153,7 @@ func (s *ManagedMachinePoolScope) InstanceGroupManagersClient() *compute.Instanc
 }
 
 // NodePoolVersion returns the k8s version of the node pool.
-func (s *ManagedMachinePoolScope) NodePoolVersion() *string {
+func (s *ManagedMachinePoolScope) NodePoolVersion() string {
 	return s.MachinePool.Spec.Template.Spec.Version
 }
 
@@ -169,7 +168,7 @@ func NodePoolResourceLabels(additionalLabels infrav1.Labels, clusterName string)
 }
 
 // ConvertToSdkNodePool converts a node pool to format that is used by GCP SDK.
-func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool clusterv1exp.MachinePool, regional bool, clusterName string) *containerpb.NodePool {
+func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool clusterv1.MachinePool, regional bool, clusterName string) *containerpb.NodePool {
 	replicas := *machinePool.Spec.Replicas
 	if regional {
 		if len(nodePool.Spec.NodeLocations) != 0 {
@@ -242,10 +241,7 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 		sdkNodePool.Config.DiskType = string(*nodePool.Spec.DiskType)
 	}
 	if nodePool.Spec.DiskSizeGB != nil {
-		sdkNodePool.Config.DiskSizeGb = int32(*nodePool.Spec.DiskSizeGB)
-	}
-	if nodePool.Spec.BootDiskKmsKey != "" {
-		sdkNodePool.Config.BootDiskKmsKey = nodePool.Spec.BootDiskKmsKey
+		sdkNodePool.Config.DiskSizeGb = int32(*nodePool.Spec.DiskSizeGB) //nolint:gosec
 	}
 	if len(nodePool.Spec.NodeNetwork.Tags) != 0 {
 		sdkNodePool.Config.Tags = nodePool.Spec.NodeNetwork.Tags
@@ -277,65 +273,58 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 			Type: containerpb.SandboxConfig_GVISOR,
 		}
 	}
-	if machinePool.Spec.Template.Spec.Version != nil {
-		sdkNodePool.Version = strings.Replace(*machinePool.Spec.Template.Spec.Version, "v", "", 1)
+	if ptr.Deref(nodePool.Spec.Preemptible, false) {
+		sdkNodePool.Config.Preemptible = true
+	}
+	if ptr.Deref(nodePool.Spec.Spot, false) {
+		sdkNodePool.Config.Spot = true
+	}
+	if machinePool.Spec.Template.Spec.Version != "" {
+		sdkNodePool.Version = strings.Replace(machinePool.Spec.Template.Spec.Version, "v", "", 1)
 	}
 	return &sdkNodePool
 }
 
 // ConvertToSdkNodePools converts node pools to format that is used by GCP SDK.
-func ConvertToSdkNodePools(nodePools []infrav1exp.GCPManagedMachinePool, machinePools []clusterv1exp.MachinePool, regional bool, clusterName string) []*containerpb.NodePool {
-	res := []*containerpb.NodePool{}
+func ConvertToSdkNodePools(nodePools []infrav1exp.GCPManagedMachinePool, machinePools []clusterv1.MachinePool, regional bool, clusterName string) []*containerpb.NodePool {
+	res := make([]*containerpb.NodePool, 0, len(nodePools))
 	for i := range nodePools {
 		res = append(res, ConvertToSdkNodePool(nodePools[i], machinePools[i], regional, clusterName))
 	}
 	return res
 }
 
-// SetReplicas sets the replicas count in status and spec.
+// SetReplicas sets the replicas count in status and writes it back to the owner MachinePool.
 func (s *ManagedMachinePoolScope) SetReplicas(replicas int32) {
-	// Update the status replicas
 	s.GCPManagedMachinePool.Status.Replicas = replicas
-	log.Log.Info("Updated GCPManagedMachinePool.Status.Replicas", "Replicas", s.GCPManagedMachinePool.Status.Replicas)
-
-	// Update MachinePool.Spec.Replicas to reflect the changes
-	if err := s.updateMachinePoolReplicas(context.TODO(), replicas); err != nil {
-		log.Log.Error(err, "Failed to update MachinePool.Spec.Replicas")
+	if err := s.syncMachinePoolReplicas(context.TODO(), replicas); err != nil {
+		log.Log.Error(err, "Failed to sync MachinePool replicas", "machinePool", s.GCPManagedMachinePool.Name)
 	}
-
 }
 
-// updateMachinePoolReplicas updates the MachinePool replicas based on setReplicas.
-func (s *ManagedMachinePoolScope) updateMachinePoolReplicas(ctx context.Context, replicas int32) error {
-	log := log.FromContext(ctx)
-	// Fetch the corresponding MachinePool
-	machinePool := &clusterv1exp.MachinePool{}
-	if err := s.client.Get(ctx, client.ObjectKey{
-		Namespace: s.GCPManagedMachinePool.Namespace,
-		Name:      s.GCPManagedMachinePool.Name,
-	}, machinePool); err != nil {
-		log.Error(err, "Failed to fetch MachinePool")
-		return err
+// syncMachinePoolReplicas aligns MachinePool.spec.replicas with the node count observed in GKE, so that scaling done by GKE does not leave the MachinePool scaling forever.
+func (s *ManagedMachinePoolScope) syncMachinePoolReplicas(ctx context.Context, replicas int32) error {
+	machinePool := s.MachinePool
+	if machinePool == nil || s.client == nil {
+		return nil
 	}
 
-	// Update MachinePool.Spec.Replicas to match GCPManagedMachinePool.Status.Replicas
-	machinePool.Spec.Replicas = &replicas
-	log.Info("Updated MachinePool.Spec.Replicas", "Replicas", replicas)
-	// Persist the changes
-	if err := s.client.Update(ctx, machinePool); err != nil {
-		log.Error(err, "Failed to update MachinePool Spec.Replicas")
-		return err
-	}
-
-	if *machinePool.Spec.Replicas == 0 && machinePool.Status.Replicas == 0 {
-		// Update the status replicas to replicas
-		machinePool.Status.Replicas = replicas
-		log.Info("Updated MachinePool Status replicas", "MachinePool Name", machinePool.Name, "Replicas", replicas)
-		if err := s.client.Status().Update(ctx, machinePool); err != nil {
-			log.Error(err, "Failed to update MachinePool Status.Replicas")
-			return err
+	if ptr.Deref(machinePool.Spec.Replicas, -1) != replicas {
+		original := machinePool.DeepCopy()
+		machinePool.Spec.Replicas = ptr.To(replicas)
+		if err := s.client.Patch(ctx, machinePool, client.MergeFrom(original)); err != nil {
+			return errors.Wrap(err, "patching MachinePool spec.replicas")
 		}
 	}
+
+	if replicas == 0 && machinePool.Status.Replicas == nil {
+		original := machinePool.DeepCopy()
+		machinePool.Status.Replicas = ptr.To(int32(0))
+		if err := s.client.Status().Patch(ctx, machinePool, client.MergeFrom(original)); err != nil {
+			return errors.Wrap(err, "patching MachinePool status.replicas")
+		}
+	}
+
 	return nil
 }
 
@@ -361,4 +350,16 @@ func (s *ManagedMachinePoolScope) NodePoolLocation() string {
 // NodePoolFullName returns the full name of the node pool.
 func (s *ManagedMachinePoolScope) NodePoolFullName() string {
 	return fmt.Sprintf("%s/nodePools/%s", s.NodePoolLocation(), s.NodePoolName())
+}
+
+// SetInfrastructureMachineKind sets the infrastructure machine kind in the status if it is not set already, returning
+// `true` if the status was updated. This supports MachinePool Machines.
+func (s *ManagedMachinePoolScope) SetInfrastructureMachineKind() bool {
+	if s.GCPManagedMachinePool.Status.InfrastructureMachineKind != infrav1exp.GCPManagedMachinePoolMachineKind {
+		s.GCPManagedMachinePool.Status.InfrastructureMachineKind = infrav1exp.GCPManagedMachinePoolMachineKind
+
+		return true
+	}
+
+	return false
 }

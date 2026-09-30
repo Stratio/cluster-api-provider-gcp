@@ -17,8 +17,12 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"k8s.io/utils/strings/slices"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 const (
@@ -27,21 +31,50 @@ const (
 	ManagedControlPlaneFinalizer = "gcpmanagedcontrolplane.infrastructure.cluster.x-k8s.io"
 )
 
+// PrivateCluster defines a private Cluster.
 type PrivateCluster struct {
 	// EnablePrivateEndpoint: Whether the master's internal IP
 	// address is used as the cluster endpoint.
 	// +optional
 	EnablePrivateEndpoint bool `json:"enablePrivateEndpoint,omitempty"`
+
 	// EnablePrivateNodes: Whether nodes have internal IP
 	// addresses only. If enabled, all nodes are given only RFC
 	// 1918 private addresses and communicate with the master via
 	// private networking.
 	// +optional
 	EnablePrivateNodes bool `json:"enablePrivateNodes,omitempty"`
+
 	// ControlPlaneCidrBlock is the IP range in CIDR notation to use for the hosted master network. This range must not
 	// overlap with any other ranges in use within the cluster's network. Honored when enabled is true.
 	// +optional
 	ControlPlaneCidrBlock string `json:"controlPlaneCidrBlock,omitempty"`
+
+	// ControlPlaneGlobalAccess is whenever master is accessible globally or not. Honored when enabled is true.
+	// +optional
+	ControlPlaneGlobalAccess bool `json:"controlPlaneGlobalAccess,omitempty"`
+
+	// DisableDefaultSNAT disables cluster default sNAT rules. Honored when enabled is true.
+	// +optional
+	DisableDefaultSNAT bool `json:"disableDefaultSNAT,omitempty"`
+}
+
+// ClusterNetworkPod the range of CIDRBlock list from where it gets the IP address.
+type ClusterNetworkPod struct {
+	// CidrBlock is where all pods in the cluster are assigned an IP address from this range. Enter a range
+	// (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+	// This setting is permanent.
+	// +optional
+	CidrBlock string `json:"cidrBlock,omitempty"`
+}
+
+// ClusterNetworkService defines the range of CIDRBlock list from where it gets the IP address.
+type ClusterNetworkService struct {
+	// CidrBlock is where cluster services will be assigned an IP address from this IP address range. Enter a range
+	// (in CIDR notation) within a network range, a mask, or leave this field blank to use a default range.
+	// This setting is permanent.
+	// +optional
+	CidrBlock string `json:"cidrBlock,omitempty"`
 }
 
 // ClusterNetwork define the cluster network.
@@ -49,23 +82,19 @@ type ClusterNetwork struct {
 	// PrivateCluster defines the private cluster spec.
 	// +optional
 	PrivateCluster *PrivateCluster `json:"privateCluster,omitempty"`
-}
 
-// LoggingConfig defines the logging on Cluster.
-type LoggingConfig struct {
-	// SystemComponents enables the system component logging.
+	// UseIPAliases is whether alias IPs will be used for pod IPs in the cluster. If false, routes will be used for
+	// pod IPs in the cluster.
 	// +optional
-	SystemComponents bool `json:"systemComponents,omitempty"`
-	// Workloads enables the Workloads logging.
-	// +optional
-	Workloads bool `json:"workloads,omitempty"`
-}
+	UseIPAliases bool `json:"useIPAliases,omitempty"`
 
-// MonitoringConfig defines the monitoring on Cluster.
-type MonitoringConfig struct {
-	// EnableManagedPrometheus Enable Google Cloud Managed Service for Prometheus in the cluster.
+	// Pod defines the range of CIDRBlock list from where it gets the IP address.
 	// +optional
-	EnableManagedPrometheus bool `json:"enableManagedPrometheus,omitempty"`
+	Pod *ClusterNetworkPod `json:"pod,omitempty"`
+
+	// Service defines the range of CIDRBlock list from where it gets the IP address.
+	// +optional
+	Service *ClusterNetworkService `json:"service,omitempty"`
 }
 
 // WorkloadIdentityConfig allows workloads in your GKE clusters to impersonate Identity and Access Management (IAM)
@@ -77,70 +106,69 @@ type WorkloadIdentityConfig struct {
 	WorkloadPool string `json:"workloadPool,omitempty"`
 }
 
+// AuthenticatorGroupConfig is RBAC security group for use with Google security groups in Kubernetes RBAC.
+type AuthenticatorGroupConfig struct {
+	// SecurityGroups is the name of the security group-of-groups to be used.
+	// +kubebuilder:validation:Required
+	SecurityGroups string `json:"securityGroups,omitempty"`
+}
+
+// BinaryAuthorization is the Binary Authorization evaluation mode of the GKE cluster
+// +kubebuilder:validation:Enum=disabled;project_singleton_policy_enforce
+type BinaryAuthorization string
+
+const (
+	// EvaluationModeDisabled disables BinaryAuthorization.
+	EvaluationModeDisabled BinaryAuthorization = "disabled"
+	// EvaluationModeProjectSingletonPolicyEnforce enforces Kubernetes admission requests with BinaryAuthorization using the
+	// project's singleton policy. This is equivalent to setting the
+	EvaluationModeProjectSingletonPolicyEnforce BinaryAuthorization = "project_singleton_policy_enforce"
+)
+
+// ClusterSecurity defines the cluster security options.
 type ClusterSecurity struct {
 	// WorkloadIdentityConfig allows workloads in your GKE clusters to impersonate Identity and Access Management (IAM)
 	// service accounts to access Google Cloud services
 	// +optional
 	WorkloadIdentityConfig *WorkloadIdentityConfig `json:"workloadIdentityConfig,omitempty"`
+
+	// AuthenticatorGroupConfig is RBAC security group for use with Google security groups in Kubernetes RBAC.
+	// +optional
+	AuthenticatorGroupConfig *AuthenticatorGroupConfig `json:"authenticatorGroupConfig,omitempty"`
 }
 
 // GCPManagedControlPlaneSpec defines the desired state of GCPManagedControlPlane.
 type GCPManagedControlPlaneSpec struct {
+	GCPManagedControlPlaneClassSpec `json:",inline"`
+
 	// ClusterName allows you to specify the name of the GKE cluster.
 	// If you don't specify a name then a default name will be created
 	// based on the namespace and name of the managed control plane.
 	// +optional
 	ClusterName string `json:"clusterName,omitempty"`
-	// ClusterNetwork define the cluster network.
+
+	// Description describe the cluster.
 	// +optional
-	ClusterNetwork *ClusterNetwork `json:"clusterNetwork,omitempty"`
-	// ClusterSecurity defines the cluster security.
-	// +optional
-	ClusterSecurity *ClusterSecurity `json:"clusterSecurity,omitempty"`
-	// LoggingConfig defines the logging on Cluster.
-	// +optional
-	LoggingConfig *LoggingConfig `json:"loggingConfig,omitempty"`
-	// MonitoringConfig defines the monitoring on Cluster.
-	// +optional
-	MonitoringConfig *MonitoringConfig `json:"monitoringConfig,omitempty"`
-	// Project is the name of the project to deploy the cluster to.
-	Project string `json:"project"`
-	// Location represents the location (region or zone) in which the GKE cluster
-	// will be created.
-	Location string `json:"location"`
-	// ClusterIpv4Cidr is the IP address range of the container pods in the GKE cluster, in
-	// [CIDR](http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing)
-	// notation (e.g. `10.96.0.0/14`).
-	// If not specified then one will be automatically chosen.
-	// If this field is specified then IPAllocationPolicy.ClusterIpv4CidrBlock should be left blank.
-	// +optional
-	ClusterIpv4Cidr *string `json:"clusterIpv4Cidr,omitempty"`
-	// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
-	// If not specified then GKE default values will be used.
-	// +optional
-	IPAllocationPolicy *IPAllocationPolicy `json:"ipAllocationPolicy,omitempty"`
-	// EnableAutopilot indicates whether to enable autopilot for this GKE cluster.
-	// +optional
-	EnableAutopilot bool `json:"enableAutopilot"`
-	// ReleaseChannel represents the release channel of the GKE cluster.
-	// +optional
-	ReleaseChannel *ReleaseChannel `json:"releaseChannel,omitempty"`
+	Description string `json:"description,omitempty"`
+
 	// ControlPlaneVersion represents the control plane version of the GKE cluster.
 	// If not specified, the default version currently supported by GKE will be
 	// used.
+	//
+	// Deprecated: This field will soon be removed and you are expected to use Version instead.
+	//
 	// +optional
 	ControlPlaneVersion *string `json:"controlPlaneVersion,omitempty"`
+
+	// Version represents the control plane version of the GKE cluster.
+	// If not specified, the default version currently supported by GKE will be
+	// used.
+	// +optional
+	Version *string `json:"version,omitempty"`
+
 	// Endpoint represents the endpoint used to communicate with the control plane.
 	// +optional
-	Endpoint clusterv1.APIEndpoint `json:"endpoint"`
-	// MasterAuthorizedNetworksConfig represents configuration options for master authorized networks feature of the GKE cluster.
-	// This feature is disabled if this field is not specified.
-	// +optional
-	MasterAuthorizedNetworksConfig *MasterAuthorizedNetworksConfig `json:"master_authorized_networks_config,omitempty"`
-	// NetworkPolicy represents configuration options for NetworkPolicy feature of the GKE cluster.
-	// This feature is disabled if this field is not specified.
-	// +optional
-	NetworkPolicy *NetworkPolicy `json:"networkPolicy,omitempty"`
+	Endpoint clusterv1beta1.APIEndpoint `json:"endpoint"`
 }
 
 // GCPManagedControlPlaneStatus defines the observed state of GCPManagedControlPlane.
@@ -156,11 +184,18 @@ type GCPManagedControlPlaneStatus struct {
 	Initialized bool `json:"initialized,omitempty"`
 
 	// Conditions specifies the conditions for the managed control plane
-	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+	Conditions clusterv1beta1.Conditions `json:"conditions,omitempty"`
 
 	// CurrentVersion shows the current version of the GKE control plane.
+	//
+	// Deprecated: This field will soon be removed and you are expected to use Version instead.
+	//
 	// +optional
 	CurrentVersion string `json:"currentVersion,omitempty"`
+
+	// Version represents the version of the GKE control plane.
+	// +optional
+	Version *string `json:"version,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -170,6 +205,7 @@ type GCPManagedControlPlaneStatus struct {
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels.cluster\\.x-k8s\\.io/cluster-name",description="Cluster to which this GCPManagedControlPlane belongs"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="Control plane is ready"
 // +kubebuilder:printcolumn:name="CurrentVersion",type="string",JSONPath=".status.currentVersion",description="The current Kubernetes version"
+// +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".status.version",description="The Kubernetes version of the GKE control plane"
 // +kubebuilder:printcolumn:name="Endpoint",type="string",JSONPath=".spec.endpoint",description="API Endpoint",priority=1
 
 // GCPManagedControlPlane is the Schema for the gcpmanagedcontrolplanes API.
@@ -205,35 +241,6 @@ const (
 	Extended ReleaseChannel = "extended"
 )
 
-// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
-type IPAllocationPolicy struct {
-	// UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster.
-	// If unspecified will default to false.
-	// +optional
-	UseIPAliases *bool `json:"useIPAliases,omitempty"`
-	// ClusterSecondaryRangeName represents the name of the secondary range to be used for the GKE cluster CIDR block.
-	// The range will be used for pod IP addresses and must be an existing secondary range associated with the cluster subnetwork.
-	// This field is only applicable when use_ip_aliases is set to true.
-	// +optional
-	ClusterSecondaryRangeName *string `json:"clusterSecondaryRangeName,omitempty"`
-	// ServicesSecondaryRangeName represents the name of the secondary range to be used for the services CIDR block.
-	// The range will be used for service ClusterIPs and must be an existing secondary range associated with the cluster subnetwork.
-	// This field is only applicable when use_ip_aliases is set to true.
-	// +optional
-	ServicesSecondaryRangeName *string `json:"servicesSecondaryRangeName,omitempty"`
-	// ClusterIpv4CidrBlock represents the IP address range for the GKE cluster pod IPs. If this field is set, then
-	// GCPManagedControlPlaneSpec.ClusterIpv4Cidr must be left blank.
-	// This field is only applicable when use_ip_aliases is set to true.
-	// If not specified the range will be chosen with the default size.
-	// +optional
-	ClusterIpv4CidrBlock *string `json:"clusterIpv4CidrBlock,omitempty"`
-	// ServicesIpv4CidrBlock represents the IP address range for services IPs in the GKE cluster.
-	// This field is only applicable when use_ip_aliases is set to true.
-	// If not specified the range will be chosen with the default size.
-	// +optional
-	ServicesIpv4CidrBlock *string `json:"servicesIpv4CidrBlock,omitempty"`
-}
-
 // MasterAuthorizedNetworksConfig contains configuration options for the master authorized networks feature.
 // Enabled master authorized networks will disallow all external traffic to access
 // Kubernetes master through HTTPS except traffic from the given CIDR blocks,
@@ -257,21 +264,93 @@ type MasterAuthorizedNetworksConfigCidrBlock struct {
 	CidrBlock string `json:"cidr_block,omitempty"`
 }
 
-// NetworkPolicy represents configuration options for NetworkPolicy feature of the GKE cluster.
+// IPAllocationPolicy represents configuration options for GKE cluster IP allocation.
+type IPAllocationPolicy struct {
+	// UseIPAliases represents whether alias IPs will be used for pod IPs in the cluster. Defaults to false.
+	// +optional
+	UseIPAliases *bool `json:"useIPAliases,omitempty"`
+	// ClusterSecondaryRangeName is the name of an existing subnetwork secondary range used for pod IPs.
+	// +optional
+	ClusterSecondaryRangeName *string `json:"clusterSecondaryRangeName,omitempty"`
+	// ServicesSecondaryRangeName is the name of an existing subnetwork secondary range used for service IPs.
+	// +optional
+	ServicesSecondaryRangeName *string `json:"servicesSecondaryRangeName,omitempty"`
+	// ClusterIpv4CidrBlock is the IP range for pod IPs; chosen with the default size if unset.
+	// +optional
+	ClusterIpv4CidrBlock *string `json:"clusterIpv4CidrBlock,omitempty"`
+	// ServicesIpv4CidrBlock is the IP range for service IPs; chosen with the default size if unset.
+	// +optional
+	ServicesIpv4CidrBlock *string `json:"servicesIpv4CidrBlock,omitempty"`
+}
+
+// NetworkPolicy represents configuration options for the NetworkPolicy feature of the GKE cluster.
 type NetworkPolicy struct {
-	// The selected network policy provider.
+	// Provider is the network policy provider.
 	// +kubebuilder:validation:Enum=calico
 	// +optional
 	Provider string `json:"provider,omitempty"`
 }
 
+// LoggingConfig selects the GKE components that send logs to Cloud Logging; none selected disables them.
+type LoggingConfig struct {
+	// SystemComponents enables logging of system components.
+	// +optional
+	SystemComponents bool `json:"systemComponents,omitempty"`
+	// Workloads enables logging of workloads.
+	// +optional
+	Workloads bool `json:"workloads,omitempty"`
+}
+
+// MonitoringConfig configures the managed monitoring of the GKE cluster.
+type MonitoringConfig struct {
+	// EnableManagedPrometheus enables Google Cloud Managed Service for Prometheus in the cluster.
+	// +optional
+	EnableManagedPrometheus bool `json:"enableManagedPrometheus,omitempty"`
+}
+
+// LoggingService is GKE logging service configuration.
+type LoggingService string
+
+// Validate validates LoggingService value.
+func (l LoggingService) Validate() error {
+	validValues := []string{"none", "logging.googleapis.com/kubernetes"}
+	if !slices.Contains(validValues, l.String()) {
+		return fmt.Errorf("invalid value; expect one of : %s", strings.Join(validValues, ","))
+	}
+
+	return nil
+}
+
+// String returns a string from LoggingService.
+func (l LoggingService) String() string {
+	return string(l)
+}
+
+// MonitoringService is GKE logging service configuration.
+type MonitoringService string
+
+// Validate validates MonitoringService value.
+func (m MonitoringService) Validate() error {
+	validValues := []string{"none", "monitoring.googleapis.com/kubernetes"}
+	if !slices.Contains(validValues, m.String()) {
+		return fmt.Errorf("invalid value; expect one of : %s", strings.Join(validValues, ","))
+	}
+
+	return nil
+}
+
+// String returns a string from MonitoringService.
+func (m MonitoringService) String() string {
+	return string(m)
+}
+
 // GetConditions returns the control planes conditions.
-func (r *GCPManagedControlPlane) GetConditions() clusterv1.Conditions {
+func (r *GCPManagedControlPlane) GetConditions() clusterv1beta1.Conditions {
 	return r.Status.Conditions
 }
 
 // SetConditions sets the status conditions for the GCPManagedControlPlane.
-func (r *GCPManagedControlPlane) SetConditions(conditions clusterv1.Conditions) {
+func (r *GCPManagedControlPlane) SetConditions(conditions clusterv1beta1.Conditions) {
 	r.Status.Conditions = conditions
 }
 

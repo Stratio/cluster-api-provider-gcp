@@ -32,10 +32,21 @@ export GOPROXY
 # Active module mode, as we use go modules to manage dependencies
 export GO111MODULE=on
 
+# Go version
+GOLANG_VERSION := 1.26.8
+GOLANG_DIRECTIVE_VERSION ?= 1.26.0
+
 # Kubebuilder
-export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.29.0
+export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.35.0
 export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT ?=60s
 export KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT ?=60s
+
+# Calico version for e2e tests and dev workflows.
+# When updating, also update test/e2e/data/cni/calico/calico.yaml with the
+# manifest from the new release.
+# Ensure the Calico version is compatible with the Kubernetes version being targeted
+# (see https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements).
+CALICO_VERSION ?= v3.31.4
 
 # This option is for running docker manifest command
 export DOCKER_CLI_EXPERIMENTAL := enabled
@@ -59,11 +70,11 @@ CONVERSION_VERIFIER:= $(TOOLS_BIN_DIR)/conversion-verifier
 # Binaries.
 CLUSTERCTL := $(BIN_DIR)/clusterctl
 
-CONTROLLER_GEN_VER := v0.16.4
+CONTROLLER_GEN_VER := v0.20.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER)
 
-CONVERSION_GEN_VER := v0.29.3
+CONVERSION_GEN_VER := v0.35.0
 CONVERSION_GEN_BIN := conversion-gen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/$(CONVERSION_GEN_BIN)-$(CONVERSION_GEN_VER)
 
@@ -71,11 +82,9 @@ ENVSUBST_VER := v1.4.2
 ENVSUBST_BIN := envsubst
 ENVSUBST := $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)
 
-GOLANGCI_LINT_VER := v1.57.2
-GOLANGCI_LINT_BIN := golangci-lint
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER)
+GOLANGCI_LINT_VER := v2.12.2
 
-KIND_VER := v0.22.0
+KIND_VER := v0.32.0
 KIND_BIN := kind
 KIND := $(TOOLS_BIN_DIR)/$(KIND_BIN)-$(KIND_VER)
 
@@ -87,38 +96,44 @@ RELEASE_NOTES_VER := v0.11.0
 RELEASE_NOTES_BIN := release-notes
 RELEASE_NOTES := $(TOOLS_BIN_DIR)/$(RELEASE_NOTES_BIN)-$(RELEASE_NOTES_VER)
 
-GINKGO_VER := v2.17.1
+GINKGO_VER := v2.27.5
 GINKGO_BIN := ginkgo
 GINKGO := $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINKGO_VER)
 GINKGO_PKG := github.com/onsi/ginkgo/v2/ginkgo
 
-KUBECTL_VER := v1.29.3
+KUBECTL_VER := v1.35.0
 KUBECTL_BIN := kubectl
 KUBECTL := $(TOOLS_BIN_DIR)/$(KUBECTL_BIN)-$(KUBECTL_VER)
 
 TIMEOUT := $(shell command -v timeout || command -v gtimeout)
 
-SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
+SETUP_ENVTEST_VER := v0.0.0-20260305142021-f9589b9f2b9d
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)
-
-GO_APIDIFF_VER := v0.6.0
-GO_APIDIFF_BIN := go-apidiff
-GO_APIDIFF := $(TOOLS_BIN_DIR)/$(GO_APIDIFF_BIN)
 
 GOTESTSUM_VER := v1.6.4
 GOTESTSUM_BIN := gotestsum
 GOTESTSUM := $(TOOLS_BIN_DIR)/$(GOTESTSUM_BIN)
 
+KPROMO_VER := 5ab0dbc74b0228c22a93d240596dff77464aee8f
+KPROMO_BIN := kpromo
+KPROMO :=  $(TOOLS_BIN_DIR)/$(KPROMO_BIN)-$(KPROMO_VER)
+
+YQ_VER := v4.35.2
+YQ_BIN := yq
+YQ :=  $(TOOLS_BIN_DIR)/$(YQ_BIN)-$(YQ_VER)
+
 # Other tools versions
-CERT_MANAGER_VER := v1.14.4
+CERT_MANAGER_VER := v1.16.3
 
 # Define Docker related variables. Releases should modify and double check these vars.
 export GCP_PROJECT ?= $(shell gcloud config get-value project)
 REGISTRY ?= gcr.io/$(GCP_PROJECT)
-STAGING_REGISTRY := gcr.io/k8s-staging-cluster-api-gcp
-PROD_REGISTRY := registry.k8s.io/cluster-api-gcp
+STAGING_REGISTRY ?= gcr.io/k8s-staging-cluster-api-gcp
+PROD_REGISTRY ?= registry.k8s.io/cluster-api-gcp
 IMAGE_NAME ?= cluster-api-gcp-controller
+STAGING_BUCKET ?= k8s-staging-cluster-api-gcp
+BUCKET ?= $(STAGING_BUCKET)
 export CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 export TAG ?= dev
 export ARCH ?= amd64
@@ -143,8 +158,6 @@ endif
 # Build time versioning details.
 LDFLAGS := $(shell hack/version.sh)
 
-GOLANG_VERSION := 1.21.9
-
 # CI
 CAPG_WORKER_CLUSTER_KUBECONFIG ?= "/tmp/kubeconfig"
 
@@ -168,7 +181,6 @@ test: $(SETUP_ENVTEST) ## Run unit and integration tests
 # Allow overriding the e2e configurations
 GINKGO_FOCUS ?= Workload cluster creation
 GINKGO_SKIP ?= API Version Upgrade
-GINKGO_NODES ?= 1
 GINKGO_NOCOLOR ?= false
 GINKGO_ARGS ?=
 GINKGO_TIMEOUT ?= 2h
@@ -182,7 +194,7 @@ SKIP_CREATE_MGMT_CLUSTER ?= false
 test-e2e-run: $(ENVSUBST) $(KUBECTL) $(GINKGO) e2e-image ## Run the end-to-end tests
 	$(ENVSUBST) < $(E2E_CONF_FILE) > $(E2E_CONF_FILE_ENVSUBST) && \
 	time $(GINKGO) -v --trace -poll-progress-after=$(GINKGO_POLL_PROGRESS_AFTER) -poll-progress-interval=$(GINKGO_POLL_PROGRESS_INTERVAL) \
-	--tags=e2e --focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" --nodes=$(GINKGO_NODES) --no-color=$(GINKGO_NOCOLOR) \
+	--tags=e2e --focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" --no-color=$(GINKGO_NOCOLOR) \
 	--timeout=$(GINKGO_TIMEOUT) --output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" $(GINKGO_ARGS) ./test/e2e -- \
 		-e2e.artifacts-folder="$(ARTIFACTS)" \
 		-e2e.config="$(E2E_CONF_FILE_ENVSUBST)" \
@@ -235,14 +247,17 @@ manager: ## Build manager binary.
 ## Tooling Binaries
 ## --------------------------------------
 
+.PHONY: $(KPROMO_BIN)
+$(KPROMO_BIN): $(KPROMO) ## Build a local copy of kpromo
+
+.PHONY: $(YQ_BIN)
+$(YQ_BIN): $(YQ) ## Build a local copy of yq
+
 $(CLUSTERCTL): go.mod ## Build clusterctl binary.
 	go build -o $(BIN_DIR)/clusterctl sigs.k8s.io/cluster-api/cmd/clusterctl
 
 $(ENVSUBST): ## Build envsubst from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/a8m/envsubst/cmd/envsubst $(ENVSUBST_BIN) $(ENVSUBST_VER)
-
-$(GOLANGCI_LINT): ## Build golangci-lint from tools folder.
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
 
 $(GOTESTSUM): go.mod # Build gotestsum from tools folder.
 	 GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) gotest.tools/gotestsum $(GOTESTSUM_BIN) $(GOTESTSUM_VER)
@@ -253,6 +268,12 @@ $(KUSTOMIZE): ## Build kustomize from tools folder.
 $(SETUP_ENVTEST): go.mod # Build setup-envtest from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-runtime/tools/setup-envtest $(SETUP_ENVTEST_BIN) $(SETUP_ENVTEST_VER)
 
+$(KPROMO):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/promo-tools/v4/cmd/kpromo $(KPROMO_BIN) $(KPROMO_VER)
+
+$(YQ):
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/mikefarah/yq/v4 $(YQ_BIN) $(YQ_VER)
+
 $(CONTROLLER_GEN): ## Build controller-gen from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/controller-tools/cmd/controller-gen $(CONTROLLER_GEN_BIN) $(CONTROLLER_GEN_VER)
 
@@ -261,9 +282,6 @@ $(CONVERSION_GEN): ## Build conversion-gen.
 
 $(RELEASE_NOTES): ## Build release notes.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) k8s.io/release/cmd/release-notes $(RELEASE_NOTES_BIN) $(RELEASE_NOTES_VER)
-
-$(GO_APIDIFF): ## Build go-apidiff from tools folder.
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/joelanford/go-apidiff $(GO_APIDIFF_BIN) $(GO_APIDIFF_VER)
 
 $(CONVERSION_VERIFIER): go.mod
 	cd $(TOOLS_DIR); go build -tags=tools -o $@ sigs.k8s.io/cluster-api/hack/tools/conversion-verifier
@@ -284,9 +302,6 @@ $(KIND): ## Build kind into tools folder
 .PHONY: $(KUBECTL_BIN)
 $(KUBECTL_BIN): $(KUBECTL) ## Building kubectl from tools folder
 
-.PHONY: $(GO_APIDIFF_BIN)
-$(GO_APIDIFF_BIN): $(GO_APIDIFF)
-
 .PHONY: $(KIND_BIN)
 $(KIND_BIN): $(KIND) ## Building Kind from tools folder
 
@@ -296,15 +311,15 @@ $(KIND_BIN): $(KIND) ## Building Kind from tools folder
 ## --------------------------------------
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT) ## Lint codebase
-	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+lint: ## Lint codebase
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VER} run -v $(GOLANGCI_LINT_EXTRA_ARGS)
 
 .PHONY: lint-fix
-lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
+lint-fix: ## Lint the codebase and run auto-fixers if supported by the linter
 	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
 
-lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
-	$(GOLANGCI_LINT) run -v --fast=false
+lint-full: ## Run slower linters to detect possible issues
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VER} run -v --fast=false
 
 ## --------------------------------------
 ## Generate
@@ -326,6 +341,7 @@ generate-go: $(CONTROLLER_GEN) $(CONVERSION_GEN) ## Runs Go related generate tar
 		paths=./ \
 		paths=./... \
 		paths=./$(EXP_DIR)/api/... \
+		paths=./$(EXP_DIR)/bootstrap/gke/api/... \
 		object:headerFile=./hack/boilerplate/boilerplate.generatego.txt
 	go generate ./...
 
@@ -335,6 +351,7 @@ generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
 		paths=./ \
 		paths=./api/... \
 		paths=./$(EXP_DIR)/api/... \
+		paths=./$(EXP_DIR)/bootstrap/gke/api/... \
 		crd:crdVersions=v1 \
 		rbac:roleName=manager-role \
 		output:crd:dir=$(CRD_ROOT) \
@@ -344,6 +361,7 @@ generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
 		paths=./ \
 		paths=./controllers/... \
 		paths=./$(EXP_DIR)/controllers/... \
+		paths=./$(EXP_DIR)/bootstrap/gke/controllers/... \
 		output:rbac:dir=$(RBAC_ROOT) \
 		rbac:roleName=manager-role
 
@@ -405,8 +423,9 @@ set-manifest-pull-policy:
 ## Release
 ## --------------------------------------
 
-RELEASE_TAG := $(shell git describe --abbrev=0 2>/dev/null)
+RELEASE_TAG ?= $(shell git describe --abbrev=0 2>/dev/null)
 RELEASE_DIR := out
+IMAGE_REVIEWERS ?= $(shell ./hack/get-project-maintainers.sh)
 
 $(RELEASE_DIR):
 	mkdir -p $(RELEASE_DIR)/
@@ -445,9 +464,32 @@ RELEASE_ALIAS_TAG=$(PULL_BASE_REF)
 release-alias-tag: # Adds the tag to the last build tag.
 	gcloud container images add-tag $(CONTROLLER_IMG):$(TAG) $(CONTROLLER_IMG):$(RELEASE_ALIAS_TAG)
 
+.PHONY: release-staging-nightly
+release-staging-nightly:
+	# Tags and pushes nightly container images to the staging bucket.
+	# Invoked via cloudbuild-nightly.yaml by image-builder launched via the configured nightly periodic job.
+	$(eval NEW_RELEASE_ALIAS_TAG := nightly_$(RELEASE_ALIAS_TAG)_$(shell date +'%Y%m%d'))
+	echo $(NEW_RELEASE_ALIAS_TAG)
+	$(MAKE) release-alias-tag TAG=$(RELEASE_ALIAS_TAG) RELEASE_ALIAS_TAG=$(NEW_RELEASE_ALIAS_TAG)
+	$(MAKE) set-manifest-image MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(NEW_RELEASE_ALIAS_TAG)
+	$(MAKE) set-manifest-pull-policy PULL_POLICY=IfNotPresent
+	$(MAKE) release-manifests
+	$(MAKE) release-metadata
+	$(MAKE) release-templates
+	$(MAKE) upload-staging-artifacts RELEASE_ALIAS_TAG=$(NEW_RELEASE_ALIAS_TAG)
+
+.PHONY: upload-staging-artifacts
+upload-staging-artifacts: ## Upload release artifacts to the staging bucket
+	# Example manifest location: https://storage.googleapis.com/k8s-staging-cluster-api-aws/components/nightly_main_20240425/infrastructure-components.yaml
+	# Please note that these files are deleted after a certain period, at the time of this writing 60 days after file creation.
+	gsutil cp $(RELEASE_DIR)/* gs://$(BUCKET)/components/$(RELEASE_ALIAS_TAG)
+
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES)
 	$(RELEASE_NOTES)
+
+promote-images: $(KPROMO)
+	$(KPROMO) pr --project cluster-api-gcp --tag $(RELEASE_TAG) --reviewers "$(IMAGE_REVIEWERS)" --fork $(USER_FORK) --image cluster-api-gcp-controller
 
 ## --------------------------------------
 ## Development
@@ -467,7 +509,7 @@ create-management-cluster: $(KUSTOMIZE) $(ENVSUBST) $(KIND) $(KUBECTL)
 	./hack/install-cert-manager.sh $(CERT_MANAGER_VER)
 
 	# Deploy CAPI
-	curl --retry $(CURL_RETRIES) -sSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.7.0/cluster-api-components.yaml | $(ENVSUBST) | $(KUBECTL) apply -f -
+	curl --retry $(CURL_RETRIES) -sSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.7.3/cluster-api-components.yaml | $(ENVSUBST) | $(KUBECTL) apply -f -
 
 	# Deploy CAPG
 	$(KIND) load docker-image $(CONTROLLER_IMG)-$(ARCH):$(TAG) --name=clusterapi
@@ -497,7 +539,7 @@ create-workload-cluster: $(KUSTOMIZE) $(ENVSUBST) $(KUBECTL)
 	${TIMEOUT} 15m bash -c "while ! kubectl --kubeconfig=$(CAPG_WORKER_CLUSTER_KUBECONFIG) get nodes | grep master; do sleep 1; done"
 
 	# Deploy calico
-	$(KUBECTL) --kubeconfig=$(CAPG_WORKER_CLUSTER_KUBECONFIG) apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+	$(KUBECTL) --kubeconfig=$(CAPG_WORKER_CLUSTER_KUBECONFIG) apply -f https://raw.githubusercontent.com/projectcalico/calico/$(CALICO_VERSION)/manifests/calico.yaml
 
 	@echo 'run "$(KUBECTL) --kubeconfig=$(CAPG_WORKER_CLUSTER_KUBECONFIG) ..." to work with the new target cluster'
 
@@ -555,13 +597,10 @@ clean-release: ## Remove the release folder
 	rm -rf $(RELEASE_DIR)
 
 .PHONY: apidiff
-apidiff: $(GO_APIDIFF) ## Check for API differences.
+apidiff: APIDIFF_OLD_COMMIT ?= $(shell git rev-parse origin/main)
+apidiff: $(GO_APIDIFF) ## Check for API differences
 	@$(call checkdiff) > /dev/null
-	@if ($(call checkdiff) | grep "api/"); then \
-		$(GO_APIDIFF) $(shell git rev-parse origin/main) --print-compatible; \
-	else \
-		echo "No changes to 'api/'. Nothing to do."; \
-	fi
+	APIDIFF_OLD_COMMIT="$(APIDIFF_OLD_COMMIT)" hack/verify-apidiff
 
 define checkdiff
 	git --no-pager diff --name-only FETCH_HEAD
@@ -572,7 +611,7 @@ format-tiltfile: ## Format the Tiltfile.
 	./hack/verify-starlark.sh fix
 
 .PHONY: verify
-verify: verify-boilerplate verify-modules verify-gen verify-shellcheck verify-tiltfile verify-conversions
+verify: verify-boilerplate verify-modules verify-gen verify-shellcheck verify-tiltfile verify-conversions verify-go-directive
 
 .PHONY: verify-boilerplate
 verify-boilerplate:
@@ -599,8 +638,16 @@ verify-modules: modules
 .PHONY: verify-gen
 verify-gen: generate
 	@if !(git diff --quiet HEAD); then \
-		echo "generated files are out of date, run make generate"; exit 1; \
+		echo "generated files are out of date, run make generate"; \
+		git diff HEAD; \
+		exit 1; \
 	fi
+
+.PHONY: verify-go-directive
+verify-go-directive:
+	# use the core Cluster API script directly to verify the go directive matches the desired one.
+	# ref: https://github.com/kubernetes-sigs/cluster-api/blob/v1.10.7/hack/verify-go-directive.sh
+	curl --retry $(CURL_RETRIES) -fsL https://raw.githubusercontent.com/kubernetes-sigs/cluster-api/refs/tags/v1.11.0/hack/verify-go-directive.sh | bash -s -- -g $(GOLANG_DIRECTIVE_VERSION)
 
 change-version:
 	hack/custom/change-version.sh $(version)

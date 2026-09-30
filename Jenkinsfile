@@ -1,10 +1,10 @@
-@Library('libpipelines') _
+@Library('libpipelines@main') _
 
 hose {
     EMAIL = 'none@stratio.com'
     BUILDTOOL = 'make'
     VERSIONING_TYPE = 'stratioVersion-3-3'
-    UPSTREAM_VERSION = '1.6.1'
+    UPSTREAM_VERSION = '1.13.1'
     DEPLOYONPRS = true
     DEVTIMEOUT = 30
     ANCHORE_POLICY = "production"
