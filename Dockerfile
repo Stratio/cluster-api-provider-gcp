@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Build the manager binary
-FROM golang:1.26.8@sha256:9d2f36f06329b2a141b9db99ffa32765cf695ee57b813ca29e245e8670bcbfff as builder
+FROM golang:1.26.10@sha256:cfa27959837144bf4649802ba38e59daffd0dd2a7994aa83daaf113285b0f551 as builder
 WORKDIR /workspace
 
 # Run this with docker build --build_arg $(go env GOPROXY) to override the goproxy
@@ -39,6 +39,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 
 # Copy the controller-manager into a thin image
 FROM alpine:latest
+RUN apk upgrade --no-cache
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER nobody
