@@ -3,6 +3,7 @@
 ## 1.6.1-0.4.3 (upcoming)
 
 * [PLT-5299] Upgrade the Alpine packages of the `alpine:latest` runtime base at build time (`apk upgrade`), so the image carries `zlib` 1.4-r0 (CVE-2026-4738) before Alpine publishes a base image with it
+* [PLT-5299] Bump Go toolchain (builder `golang:1.26.8` → `golang:1.26.10`), `golang.org/x/net` (0.58.0 → 0.60.0) and `go.opentelemetry.io/otel*` (1.20.0–1.44.0 → 1.45.0) to close vulnerabilities
 
 ## 1.6.1-0.4.2 (2026-09-28)
 
