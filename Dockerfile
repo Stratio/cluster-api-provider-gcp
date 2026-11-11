@@ -39,6 +39,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 
 # Copy the controller-manager into a thin image
 FROM alpine:latest
+RUN apk upgrade --no-cache
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER nobody
