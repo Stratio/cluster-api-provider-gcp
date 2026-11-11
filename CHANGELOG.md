@@ -7,6 +7,7 @@
 * [PLT-4891] Clear `status.infrastructureMachineKind` on `GCPManagedMachinePool`: GKE node pools have no MachinePool Machines, and with the kind set CAPI >= v1.11 reported 0 ready/available replicas, blocking any caller that waits for the `MachinePool`
 * [PLT-4891] Keep the CVE fixes already shipped in `1.6.1-0.4.x` on the new base: `google.golang.org/grpc` v1.83.2, `golang.org/x/net` v0.58.0, `golang.org/x/crypto` v0.56.0, `go.opentelemetry.io/otel*` v1.44.0, Go 1.26 (builder `golang:1.26.8`)
 * [PLT-5299] Upgrade the Alpine packages of the `alpine:latest` runtime base at build time (`apk upgrade`), so the image carries `zlib` 1.4-r0 (CVE-2026-4738) before Alpine publishes a base image with it
+* [PLT-5299] Bump Go toolchain (builder `golang:1.26.8` → `golang:1.26.10`), `golang.org/x/net` (0.58.0 → 0.60.0), `golang.org/x/mod` (0.38.0 → 0.41.0), `github.com/google/cel-go` (0.26.0 → 0.29.0) and `go.opentelemetry.io/otel*` (1.43.0–1.44.0 → 1.45.0) to close vulnerabilities
 
 ## 1.6.1-0.4.2 (2026-09-28)
 
