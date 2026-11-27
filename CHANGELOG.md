@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1-0.4.4 (upcoming)
+## 1.6.1-0.4.4 (2026-11-27)
 
 * [PLT-5557] Fix GKE node pools with autoscaling enabled growing past their maximum: the node pool size is never set from `MachinePool.spec.replicas` while `GCPManagedMachinePool.spec.scaling` has autoscaling enabled; the GKE autoscaler owns the size, and the number of instances is still written to `MachinePool.spec.replicas`.
   Node pools without autoscaling keep getting their size from `MachinePool.spec.replicas`
