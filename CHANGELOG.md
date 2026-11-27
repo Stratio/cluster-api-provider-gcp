@@ -2,12 +2,14 @@
 
 ## 1.13.1-0.1.0 (upcoming)
 
-* [PLT-4891] Rebase the fork onto upstream `v1.13.1` (reads the CAPI core `Cluster`/`MachinePool` as `v1beta2`, requires CAPI core >= v1.11). Stratio behaviours re-applied: GKE NetworkPolicy (Calico), boot disk CMEK, `clusterIpv4Cidr` and `ipAllocationPolicy` (incl. secondary range names), Managed Prometheus and per-component logging, Workload Identity on update, node pool resize with autoscaling enabled, `CLUSTER_ALREADY_HAS_OPERATION` handling, replica write-back to the `MachinePool`. Private cluster, `extended` release channel, Workload Identity on create and the taints/authorized-networks diff fixes now come from upstream
+* [PLT-4891] Rebase the fork onto upstream `v1.13.1` (reads the CAPI core `Cluster`/`MachinePool` as `v1beta2`, requires CAPI core >= v1.11). Stratio behaviours re-applied: GKE NetworkPolicy (Calico), boot disk CMEK, `clusterIpv4Cidr` and `ipAllocationPolicy` (incl. secondary range names), Managed Prometheus and per-component logging, Workload Identity on update, `CLUSTER_ALREADY_HAS_OPERATION` handling, replica write-back to the `MachinePool`. Private cluster, `extended` release channel, Workload Identity on create and the taints/authorized-networks diff fixes now come from upstream
 * [PLT-4891] Keep the authorized networks of `masterAuthorizedNetworksConfig` when creating a private-endpoint GKE cluster (upstream replaced them with an empty config and the follow-up `UpdateCluster` delayed the kubeconfig past cloud-provisioner's wait); skip the `LinuxNodeConfig` diff when it is not set (upstream `eedd22f5`), which recreated every node pool right after creation
 * [PLT-4891] Clear `status.infrastructureMachineKind` on `GCPManagedMachinePool`: GKE node pools have no MachinePool Machines, and with the kind set CAPI >= v1.11 reported 0 ready/available replicas, blocking any caller that waits for the `MachinePool`
 * [PLT-4891] Keep the CVE fixes already shipped in `1.6.1-0.4.x` on the new base: `google.golang.org/grpc` v1.83.2, `golang.org/x/net` v0.58.0, `golang.org/x/crypto` v0.56.0, `go.opentelemetry.io/otel*` v1.44.0, Go 1.26 (builder `golang:1.26.8`)
 * [PLT-5299] Upgrade the Alpine packages of the `alpine:latest` runtime base at build time (`apk upgrade`), so the image carries `zlib` 1.4-r0 (CVE-2026-4738) before Alpine publishes a base image with it
 * [PLT-5299] Bump Go toolchain (builder `golang:1.26.8` → `golang:1.26.10`), `golang.org/x/net` (0.58.0 → 0.60.0), `golang.org/x/mod` (0.38.0 → 0.41.0), `github.com/google/cel-go` (0.26.0 → 0.29.0) and `go.opentelemetry.io/otel*` (1.43.0–1.44.0 → 1.45.0) to close vulnerabilities
+* [PLT-5557] Fix GKE node pools with autoscaling enabled growing past their maximum: the node pool size is never set from `MachinePool.spec.replicas` while `GCPManagedMachinePool.spec.scaling` has autoscaling enabled; the GKE autoscaler owns the size, and the number of instances is still written to `MachinePool.spec.replicas`.
+  Node pools without autoscaling keep getting their size from `MachinePool.spec.replicas`
 
 ## 1.6.1-0.4.2 (2026-09-28)
 

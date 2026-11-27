@@ -437,6 +437,11 @@ func (s *Service) checkDiffAndPrepareUpdateAutoscaling(existingNodePool *contain
 func (s *Service) checkDiffAndPrepareUpdateSize(existingNodePool *containerpb.NodePool) (bool, *containerpb.SetNodePoolSizeRequest) {
 	needUpdate := false
 
+	// Do not update the node pool size if autoscaling is enabled: the GKE autoscaler owns the size.
+	if s.scope.AutoscalingEnabled() {
+		return false, nil
+	}
+
 	setNodePoolSizeRequest := containerpb.SetNodePoolSizeRequest{
 		Name: s.scope.NodePoolFullName(),
 	}

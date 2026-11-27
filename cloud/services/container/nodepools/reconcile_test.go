@@ -27,8 +27,8 @@ import (
 	infrav1exp "sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
 )
 
-func TestCheckDiffAndPrepareUpdateSizeWithAutoscaling(t *testing.T) {
-	s := &Service{scope: &scope.ManagedMachinePoolScope{
+func newSizeTestService(scaling *infrav1exp.NodePoolAutoScaling) *Service {
+	return &Service{scope: &scope.ManagedMachinePoolScope{
 		GCPManagedControlPlane: &infrav1exp.GCPManagedControlPlane{
 			Spec: infrav1exp.GCPManagedControlPlaneSpec{
 				GCPManagedControlPlaneClassSpec: infrav1exp.GCPManagedControlPlaneClassSpec{
@@ -42,27 +42,47 @@ func TestCheckDiffAndPrepareUpdateSizeWithAutoscaling(t *testing.T) {
 			Spec: infrav1exp.GCPManagedMachinePoolSpec{
 				GCPManagedMachinePoolClassSpec: infrav1exp.GCPManagedMachinePoolClassSpec{
 					NodePoolName: "pool",
-					Scaling: &infrav1exp.NodePoolAutoScaling{
-						EnableAutoscaling: ptr.To(true),
-						MinCount:          ptr.To(int32(1)),
-						MaxCount:          ptr.To(int32(5)),
-					},
+					Scaling:      scaling,
 				},
 			},
 		},
 		MachinePool: &clusterv1.MachinePool{Spec: clusterv1.MachinePoolSpec{Replicas: ptr.To(int32(3))}},
 	}}
+}
 
-	needUpdate, req := s.checkDiffAndPrepareUpdateSize(&containerpb.NodePool{InitialNodeCount: 1, Locations: []string{"us-central1-a"}})
-	if !needUpdate {
-		t.Fatalf("expected a size update with autoscaling enabled")
-	}
-	if req.GetNodeCount() != 3 {
-		t.Errorf("NodeCount = %d, want 3", req.GetNodeCount())
-	}
+func TestCheckDiffAndPrepareUpdateSizeWithAutoscaling(t *testing.T) {
+	s := newSizeTestService(&infrav1exp.NodePoolAutoScaling{
+		EnableAutoscaling: ptr.To(true),
+		MinCount:          ptr.To(int32(1)),
+		MaxCount:          ptr.To(int32(5)),
+	})
 
-	needUpdate, _ = s.checkDiffAndPrepareUpdateSize(&containerpb.NodePool{InitialNodeCount: 3, Locations: []string{"us-central1-a"}})
+	needUpdate, _ := s.checkDiffAndPrepareUpdateSize(&containerpb.NodePool{InitialNodeCount: 1, Locations: []string{"us-central1-a"}})
 	if needUpdate {
-		t.Errorf("expected no size update when the node pool already has the desired size")
+		t.Errorf("expected no size update with autoscaling enabled: the GKE autoscaler owns the size")
+	}
+}
+
+func TestCheckDiffAndPrepareUpdateSizeWithoutAutoscaling(t *testing.T) {
+	for name, scaling := range map[string]*infrav1exp.NodePoolAutoScaling{
+		"autoscaling disabled": {EnableAutoscaling: ptr.To(false)},
+		"no scaling block":     nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newSizeTestService(scaling)
+
+			needUpdate, req := s.checkDiffAndPrepareUpdateSize(&containerpb.NodePool{InitialNodeCount: 1, Locations: []string{"us-central1-a"}})
+			if !needUpdate {
+				t.Fatalf("expected a size update")
+			}
+			if req.GetNodeCount() != 3 {
+				t.Errorf("NodeCount = %d, want 3", req.GetNodeCount())
+			}
+
+			needUpdate, _ = s.checkDiffAndPrepareUpdateSize(&containerpb.NodePool{InitialNodeCount: 3, Locations: []string{"us-central1-a"}})
+			if needUpdate {
+				t.Errorf("expected no size update when the node pool already has the desired size")
+			}
+		})
 	}
 }
