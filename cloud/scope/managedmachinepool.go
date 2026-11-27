@@ -292,6 +292,11 @@ func ConvertToSdkNodePools(nodePools []infrav1exp.GCPManagedMachinePool, machine
 	return res
 }
 
+// AutoscalingEnabled reports whether the node pool has autoscaling explicitly configured and enabled.
+func (s *ManagedMachinePoolScope) AutoscalingEnabled() bool {
+	return s.GCPManagedMachinePool.Spec.Scaling != nil && infrav1exp.ConvertToSdkAutoscaling(s.GCPManagedMachinePool.Spec.Scaling).GetEnabled()
+}
+
 // SetReplicas sets the replicas count in status and spec.
 func (s *ManagedMachinePoolScope) SetReplicas(replicas int32) {
 	// Update the status replicas

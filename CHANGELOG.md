@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1-0.4.4 (upcoming)
+
+* [PLT-5557] Fix GKE node pools with autoscaling enabled growing past their maximum: the node pool size is never set from `MachinePool.spec.replicas` while `GCPManagedMachinePool.spec.scaling` has autoscaling enabled; the GKE autoscaler owns the size, and the number of instances is still written to `MachinePool.spec.replicas`.
+  Node pools without autoscaling keep getting their size from `MachinePool.spec.replicas`
+
 ## 1.6.1-0.4.3 (2026-11-19)
 
 * [PLT-5299] Upgrade the Alpine packages of the `alpine:latest` runtime base at build time (`apk upgrade`), so the image carries `zlib` 1.4-r0 (CVE-2026-4738) before Alpine publishes a base image with it
